@@ -14,6 +14,7 @@ t_start = time.time()
 
 import jax.numpy as jnp
 import netket as nk
+import numpy as np
 import netket_foundation as nkf
 import optax
 from netket_foundation.model import ViTFNQS
@@ -31,11 +32,10 @@ HEADS = 4
 PATCH = prepare.LX  # one token per lattice row
 N_REPLICAS = 15  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 34
-SAMPLES_PER_REPLICA = 272
-LEARNING_RATE = 4e-2  # peak of a warmup + cosine decay schedule
+SAMPLES_PER_REPLICA = 136
+LEARNING_RATE = 4e-2  # peak of a warmup + cosine decay schedule over the time budget
 LR_INIT, LR_END = 1e-2, 3e-3
-WARMUP_STEPS = 50
-DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
+WARMUP_FRACTION = 0.07  # fraction of the budget spent warming up
 DIAG_SHIFT = 1e-3
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
@@ -78,11 +78,7 @@ vstate.parameter_array = jnp.linspace(prepare.J2_MIN, prepare.J2_MAX, N_REPLICAS
 
 driver = nkf.VMC_SR(
     ham,
-    optax.sgd(
-        optax.warmup_cosine_decay_schedule(
-            LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
-        )
-    ),
+    optax.inject_hyperparams(optax.sgd)(learning_rate=LR_INIT),
     variational_state=vstate,
     diag_shift=DIAG_SHIFT,
     use_ntk=True,
@@ -98,8 +94,23 @@ print(f"train_j2: {[round(float(p), 4) for p in vstate.parameter_array.ravel()]}
 # ---------------------------------------------------------------------------
 
 budget = prepare.TrainingBudget()
+
+
+def lr_schedule(step, log_data, driver):
+    """Warmup + cosine decay as a function of elapsed budget time, not steps."""
+    t = min(budget.elapsed / budget.seconds, 1.0)
+    if t < WARMUP_FRACTION:
+        lr = LR_INIT + (LEARNING_RATE - LR_INIT) * t / WARMUP_FRACTION
+    else:
+        c = 0.5 * (1 + np.cos(np.pi * (t - WARMUP_FRACTION) / (1 - WARMUP_FRACTION)))
+        lr = LR_END + (LEARNING_RATE - LR_END) * c
+    hp = driver._optimizer_state.hyperparams
+    hp["learning_rate"] = jnp.asarray(lr, dtype=hp["learning_rate"].dtype)
+    return True
+
+
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=budget, show_progress=False, timeit=True)
+driver.run(10**9, out=log, callback=[budget, lr_schedule], show_progress=False, timeit=True)
 
 energies = log.data["Mean Energy"]["Mean"]
 print(f"final mean energy/N (sampled): {float(energies[-1].real) / hi.size:.6f}")
