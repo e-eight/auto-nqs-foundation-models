@@ -32,7 +32,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 SEED = 0
 NUM_LAYERS = 2
 D_MODEL = 32
-HEADS = 4
+HEADS = 8
 PATCH = prepare.LX  # one token per lattice row
 N_REPLICAS = 28  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 18
@@ -137,6 +137,13 @@ class TwoSignViT(nn.Module):
             h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
         h = h.sum(axis=-2)
         f1, f2 = (self.head(h) for _ in range(2))
+        # Learnable J2-dependent tilt between the two branches, initialised so the
+        # Marshall branch dominates at small J2 and the learned phase at large J2;
+        # without it the stripe side sometimes stays stuck in the Marshall branch.
+        center = self.param("tilt_center", nn.initializers.constant(0.55), (), jnp.float64)
+        slope = self.param("tilt_slope", nn.initializers.constant(10.0), (), jnp.float64)
+        tilt = slope * (center - coups[..., 0])
+        f1, f2 = f1 + tilt, f2 - tilt
         marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
         m = jnp.maximum(f1.real, f2.real)
         return m + jnp.log(jnp.exp(f1 - m) * marshall + jnp.exp(f2 - m))
