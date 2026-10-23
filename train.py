@@ -42,6 +42,7 @@ LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-4
+MOMENTUM = 0.9  # SPRING momentum (Goldshlager, Abrahamsen, Lin 2024)
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
@@ -169,6 +170,7 @@ driver = nkf.VMC_SR(
     ),
     variational_state=vstate,
     diag_shift=DIAG_SHIFT,
+    momentum=MOMENTUM,
     use_ntk=True,
     chunk_size_bwd=CHUNK_SIZE_BWD,
     on_the_fly=False,  # explicit Jacobian: ~8x faster than the on-the-fly NTK here
