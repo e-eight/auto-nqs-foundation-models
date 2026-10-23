@@ -42,7 +42,7 @@ LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-4
-CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
+CHUNK_SIZE = None  # no forward-pass chunking (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
