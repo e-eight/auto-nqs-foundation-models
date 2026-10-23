@@ -38,7 +38,7 @@ WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-3
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
-CHUNK_SIZE_BWD = 512  # backward-pass chunk (SR)
+CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -99,7 +99,7 @@ print(f"train_j2: {[round(float(p), 4) for p in vstate.parameter_array.ravel()]}
 
 budget = prepare.TrainingBudget()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=budget, show_progress=False)
+driver.run(10**9, out=log, callback=budget, show_progress=False, timeit=True)
 
 energies = log.data["Mean Energy"]["Mean"]
 print(f"final mean energy/N (sampled): {float(energies[-1].real) / hi.size:.6f}")
