@@ -15,6 +15,7 @@ t_start = time.time()
 import flax.linen as nn
 import jax.numpy as jnp
 import netket as nk
+import numpy as np
 import netket_foundation as nkf
 import optax
 from netket_foundation.model import ViTFNQS
@@ -49,18 +50,27 @@ hi = prepare.hilbert()
 ps = prepare.parameter_space()
 ham = prepare.hamiltonian(hi, ps)
 
-class SpinFlipSymmetric(nn.Module):
-    """psi(s) + psi(-s): the singlet ground state on an even number of sites is
-    even under a global spin flip."""
+# Symmetries the network does not have built in: translations along x (the
+# row-token attention is already invariant under translations along y) and the
+# global spin flip, under which the singlet ground state on an even number of
+# sites is even. The amplitude is averaged over the group.
+X_SHIFTS = np.array(
+    [[y * prepare.LX + (x + dx) % prepare.LX for y in range(prepare.LY) for x in range(prepare.LX)]
+     for dx in range(prepare.LX)]
+)
 
+
+class Symmetrized(nn.Module):
     net: nn.Module
 
     def __call__(self, x):
         spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
-        a = self.net(x)
-        b = self.net(jnp.concatenate([-spins, coups], axis=-1))
-        m = jnp.maximum(a.real, b.real)
-        return m + jnp.log(jnp.exp(a - m) + jnp.exp(b - m))
+        images = jnp.concatenate([spins[..., X_SHIFTS], -spins[..., X_SHIFTS]], axis=-2)
+        coups = jnp.broadcast_to(coups[..., None, :], (*images.shape[:-1], coups.shape[-1]))
+        lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
+        lp = lp.reshape(images.shape[:-1])
+        m = jnp.max(lp.real, axis=-1, keepdims=True)
+        return m[..., 0] + jnp.log(jnp.mean(jnp.exp(lp - m), axis=-1))
 
 
 vit = ViTFNQS(
@@ -75,7 +85,7 @@ vit = ViTFNQS(
     transl_invariant=True,  # translation along rows-of-the-lattice (PBC in y)
     two_dimensional=False,
 )
-model = SpinFlipSymmetric(vit)
+model = Symmetrized(vit)
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=prepare.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
