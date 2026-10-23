@@ -44,7 +44,7 @@ DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H2
 DIAG_SHIFT = 1e-4
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
-AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
+AVERAGE_FRACTION = 0.15  # average the weights over this final fraction of the budget
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
 # ---------------------------------------------------------------------------
