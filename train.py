@@ -32,7 +32,10 @@ PATCH = prepare.LX  # one token per lattice row
 N_REPLICAS = 8  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 64
 SAMPLES_PER_REPLICA = 512
-LEARNING_RATE = 3e-2
+LEARNING_RATE = 4e-2  # peak of a warmup + cosine decay schedule
+LR_INIT, LR_END = 1e-2, 3e-3
+WARMUP_STEPS = 50
+DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-3
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 CHUNK_SIZE_BWD = 512  # backward-pass chunk (SR)
@@ -75,7 +78,11 @@ vstate.parameter_array = jnp.linspace(prepare.J2_MIN, prepare.J2_MAX, N_REPLICAS
 
 driver = nkf.VMC_SR(
     ham,
-    optax.sgd(LEARNING_RATE),
+    optax.sgd(
+        optax.warmup_cosine_decay_schedule(
+            LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
+        )
+    ),
     variational_state=vstate,
     diag_shift=DIAG_SHIFT,
     use_ntk=True,
