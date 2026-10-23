@@ -32,7 +32,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 SEED = 0
 NUM_LAYERS = 2
 D_MODEL = 32
-HEADS = 4
+HEADS = 8
 PATCH = prepare.LX  # one token per lattice row
 N_REPLICAS = 28  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 18
