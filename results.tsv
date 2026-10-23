@@ -1,0 +1,51 @@
+commit	gpu	score	max_rel_err	vram_gb	status	description
+824cd55	h200	-2.329297	0.014407	4.0	keep	baseline (ViT 2x32, row patches, 8 replicas, NTK-SR)
+5052925	h200	-1.878557	0.079209	4.0	discard	fixed Marshall sign prior (Choo 2019): 9x better at J2=0.325 but breaks stripe side
+e78f788	h200	-1.993163	0.145815	4.0	discard	Marshall sign gated by learned sigmoid in J2: fractional phase ruins 0.575-0.675
+13000d7	h200	-2.527698	0.005974	4.0	keep	LR 1e-2 -> 3e-2
+cfeb7c8	h200	0.000000	0.000000	5.4	crash	LR 1e-1: diverged to NaN (harness reported status ok, score nan)
+e169e19	h200	-2.541391	0.009160	4.0	keep	warmup+cosine LR 1e-2->4e-2->3e-3 over 750 steps
+eb21210	h200	-2.703922	0.004596	3.9	keep	15 replicas at 0.05 spacing (was 8), same total samples (Rende 2025: more systems at fixed batch)
+ffd9801	h200	-2.664419	0.004898	3.9	discard	stratified random J2 redraw each step within 0.05 cells: no gain, probes already fine
+24a8e9b	h200	-2.567585	0.004899	3.9	discard	136 chains/replica (2 samples/chain) + 1 discard sweep: only 3% more steps, worse small J2
+cdf2884	h200	-2.704202	0.004594	5.2	discard	no forward chunking: identical errors and step count (tie), more VRAM
+04cc21b	h200	-2.705737	0.004571	3.9	keep	no backward chunking (+6% steps); timeit shows SR solve 66% of step time
+1233fa6	h200	-2.660845	0.004851	1.8	discard	time-based LR schedule + half samples (136/replica): 2.4x steps but worse
+e07376a	h200	-2.470779	0.008266	6.5	discard	time-based LR schedule + 4 layers: only 423 steps, worse everywhere
+2c683fd	h200	-2.781126	0.004536	3.9	keep	spin-flip symmetrization psi(s)+psi(-s) (singlet GS is flip-even)
+3fb0f26	h200	-2.888043	0.002601	3.9	keep	symmetrize over 4 x-translations x spin flip (8 images): only 295 steps but big gain mid-J2
+8c6c01e	h200	-2.764319	0.003597	3.9	discard	time-based LR decay to 3e-3: worse, still LR-limited at ~300 steps
+eaaf121	h200	-2.902248	0.003300	3.9	keep	peak LR 4e-2 -> 6e-2
+40cb0bf	h200	-2.716826	0.007960	3.9	discard	diag_shift 1e-4: large J2 3x better, small J2 7x worse
+784cb41	h200	-2.991229	0.002231	4.2	keep	two heads on shared ViT: psi=exp(f1)*Marshall+exp(f2) (Marshall sign, Choo 2019, as superposition)
+cbb95b0	h200	-3.056687	0.001969	4.2	keep	diag_shift 1e-3 -> 1e-4 (now stable with Marshall head)
+053b289	h200	-2.925504	0.002423	4.2	discard	diag_shift 1e-5: worse below J2=0.6
+c14d0f1	h200	-2.982009	0.003372	2.8	discard	half samples (136/replica): 2x steps, worse mid-J2
+0b2737a	h200	-3.283399	0.001320	4.1	keep	28 replicas on 0.025 grid offset by half step (was 15), same total samples
+220b55d	h200	-3.119188	0.002201	4.1	discard	56 replicas (72 samples each) spread outside test windows: worse than 28
+87c3c29	h200	0.000000	0.000000	0.0	crash	float32 ViT: gather on attention param under shard_map (fixed by roll, re-run)
+65c41cb	h200	-2.615346	0.037483	4.1	discard	float32 own ViT: +36% steps, small J2 best yet but stripe side broke (3.7e-2)
+c833a9e	h200	-2.383261	0.060770	4.1	discard	diagnostic: own ViT in float64 also breaks stripe side, so rewrite (shared head LayerNorm/init) not precision
+ffec8dc	h200	-3.263762	0.001435	4.1	discard	float32 own ViT with per-head LayerNorm: +36% steps, equal-ish (small J2 better, large slightly worse)
+89da154	h200	-3.340336	0.001023	3.9	keep	own float32 ViT (params f64, per-head LN) + 180 samples/replica using the speedup
+e0bd9e7	h200	-3.260780	0.001096	3.9	discard	peak LR 8e-2: worse, esp. large J2
+d78828b	h200	-3.120985	0.001488	4.2	discard	SPRING momentum 0.9 (Goldshlager 2024) at LR 6e-2: too aggressive
+acd58ce	h200	-3.227409	0.001706	3.9	discard	2x2 plaquette tokens + 2D attention + 4 sub-plaquette shifts (Viteritti 2023 patching): worse mid-J2
+e070fb9	h200	-3.143742	0.001952	6.4	discard	252 samples/replica: only 178 steps (NTK quadratic), worse
+1c69bb8	h200	0.000000	0.000000	0.0	crash	no forward chunking at 5040 samples: OOM (15 GB)
+9dfa9b5	h200	-2.976327	0.003203	3.9	discard	J2 input rescaled to [-1,1]: much worse mid/stripe
+b86d613	h200	-3.373647	0.000963	3.9	keep	Polyak weight averaging over last 25% of budget (70 steps)
+0edc53a	h200	-3.319672	0.001069	3.9	discard	weight averaging over last 50% (140 steps): worse than 25%
+35afb72	h200	-2.644172	0.036694	3.9	discard	8 heads: stripe side collapsed again (3rd time this failure mode; init-dependent)
+066c010	h200	-3.306252	0.001361	3.9	discard	learnable J2 tilt between sign branches: slightly worse mid-J2 (robustness test next)
+d632efb	h200	-3.386616	0.001038	3.9	keep	learnable J2 tilt between sign branches + 8 heads (tilt prevents stripe collapse)
+5bf1721	h200	-3.307029	0.001342	4.5	discard	FiLM J2 conditioning in every encoder LayerNorm (zero-init): worse mid/stripe
+d27f56d	h200	0.000000	0.000000	6.9	crash	n_discard 2 (was 5): diverged to NaN after 124 steps (harness status ok, score nan)
+bf36541	h200	-2.498044	0.014267	5.9	discard	3 encoder layers: 197 steps, stripe side much worse
+bb3d05a	h200	-3.322991	0.001191	6.9	discard	216 samples/replica: 209 steps, slightly worse
+81e9880	h200	-2.888585	0.005924	3.9	discard	diag_shift 2e-4: large J2 much worse
+0f70b75	h200	-3.391802	0.001232	4.0	keep	add x-mirror to symmetrization (16 images, 175 steps): marginal gain
+a3c0664	h200	-3.152384	0.003763	6.0	discard	add y-mirror (32 images): only 106 steps, worse
+610bfb3	h200	-3.065362	0.001602	4.2	discard	144 samples/replica with 16 images: 229 steps, worse everywhere
+94e15da	h200	-3.310604	0.001233	4.0	discard	weight averaging over last 15%: worse than 25%
+612587d	h200	-3.357515	0.001338	4.0	discard	warmup 20 steps (was 50): slightly worse

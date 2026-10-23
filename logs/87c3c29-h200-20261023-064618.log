@@ -1,0 +1,80 @@
+online_statistics: chain_length=8, exponential moving average window: 50, decay=0.840
+num_params: 25712
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Traceback (most recent call last):
+  File "/home/soham/auto-nqs/default/train.py", line 185, in <module>
+    driver.run(10**9, out=log, callback=budget, show_progress=False, timeit=True)
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 516, in run
+    raise error
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 468, in run
+    self._loss_stats, self._dp = self.compute_loss_and_update()
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 292, in timed_function
+    result = fun(*args, **kwargs)  # type: ignore[misc]
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/driver/ngd/driver_vmc_ngd.py", line 132, in compute_loss_and_update
+    local_energies = self.state.local_estimators(self._ham)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 292, in timed_function
+    result = fun(*args, **kwargs)  # type: ignore[misc]
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 540, in local_estimators
+    return nk_local_estimators(self, op, chunk_size)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "src/plum/_function.py", line 502, in __call__
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 816, in _foundational_local_estimators
+    data = jax.jit(
+           ^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 791, in foundational_kernel_jax_chunked
+    logpsi_σ = logpsi_chunked(σ.reshape((-1, N))).reshape(σ.shape[:-1])  # (batch,)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/jax/_vmap_chunked.py", line 54, in _eval_fun_in_chunks_sharding
+    return sharding_decorator(f, sharded_args_tree, pvary_args_tree=pvary_args_tree)(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/jax/sharding/fixed_sharding_decorator.py", line 345, in _fun
+    res = _f(*args)
+          ^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/jax/sharding/fixed_sharding_decorator.py", line 320, in _f
+    res = f(*args)
+          ^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/jax/_vmap_chunked.py", line 28, in _eval_fun_in_chunks
+    y_rest = vmapped_fun(*args_rest, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/jax.py", line 85, in maybe_scalar_fun
+    res = apply_fun(pars, xb, *args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 178, in <lambda>
+    lambda model, pars, x, **kwargs: model.apply(pars, x, **kwargs),
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/train.py", line 74, in __call__
+    lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/train.py", line 131, in __call__
+    h = h + FactoredAttention()(layer_norm()(h))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/train.py", line 109, in __call__
+    J = J[:, shift].astype(DTYPE)  # (heads, i, j)
+        ~^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/array_methods.py", line 1528, in op
+    return getattr(self.aval, f"_{name}")(self, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/array_methods.py", line 1020, in _getitem
+    return indexing.rewriting_take(self, item)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/indexing.py", line 1189, in rewriting_take
+    return internal_gather(arr, dynamic_idx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/indexing.py", line 1241, in _gather
+    indexer = parsed_idx.to_gather(core.typeof(arr).sharding,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/indexing.py", line 607, in to_gather
+    return _index_to_gather(self, x_sharding=x_sharding, normalize_indices=normalize_indices)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/numpy/indexing.py", line 1515, in _index_to_gather
+    slice_sharding = canonicalize_sharding(
+                     ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/sharding_impls.py", line 875, in canonicalize_sharding
+    raise ValueError(
+ValueError: Context mesh AbstractMesh('S': 1, axis_types=(Manual,), device_kind=NVIDIA H200 NVL MIG 1g.18gb, num_cores=16, platform=gpu) should match the mesh of sharding AbstractMesh('S': 1, axis_types=(Auto,), device_kind=NVIDIA H200 NVL MIG 1g.18gb, num_cores=16, platform=gpu) passed to index_to_gather. This error occurs at source:  /home/soham/auto-nqs/default/train.py:109:12 (FactoredAttention.__call__)
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.

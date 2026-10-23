@@ -1,0 +1,32 @@
+online_statistics: chain_length=2, exponential moving average window: 50, decay=0.960
+num_params: 23600
+train_j2: [0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9]
+Stopping early because of :  Legacy callback <prepare.TrainingBudget object at 0x7343980c9dc0> requested to stop the run.
+final mean energy/N (sampled): -0.568515
+  J2=0.3250  E/N=-0.56326491  E0/N=-0.56581982  rel_err=4.515e-03
+  J2=0.3750  E/N=-0.54803737  E0/N=-0.55046832  rel_err=4.416e-03
+  J2=0.4250  E/N=-0.53466165  E0/N=-0.53708379  rel_err=4.510e-03
+  J2=0.4750  E/N=-0.52398098  E0/N=-0.52644509  rel_err=4.681e-03
+  J2=0.5250  E/N=-0.51728257  E0/N=-0.51982914  rel_err=4.899e-03
+  J2=0.5750  E/N=-0.51699051  E0/N=-0.51931133  rel_err=4.469e-03
+  J2=0.6250  E/N=-0.52567422  E0/N=-0.52705066  rel_err=2.612e-03
+  J2=0.6750  E/N=-0.54275002  E0/N=-0.54335981  rel_err=1.122e-03
+  J2=0.7250  E/N=-0.56585451  E0/N=-0.56630967  rel_err=8.037e-04
+  J2=0.7750  E/N=-0.59281535  E0/N=-0.59339194  rel_err=9.717e-04
+  probe J2=0.3444  rel_err=4.443e-03  (0.98x neighbouring test points)
+  probe J2=0.3549  rel_err=4.424e-03  (0.98x neighbouring test points)
+  probe J2=0.4103  rel_err=4.471e-03  (0.99x neighbouring test points)
+---
+status: ok
+score: -2.567585
+mean_rel_err: 0.003300
+max_rel_err: 0.004899
+worst_j2: 0.525000
+probe_ratio: 0.991477
+training_seconds: 600.177517
+eval_seconds: 86.437074
+total_seconds: 717.246339
+num_steps: 720
+num_params: 23600
+peak_vram_gb: 3.947973
+device: NVIDIA H200 NVL MIG 1g.18gb

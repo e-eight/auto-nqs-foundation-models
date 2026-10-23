@@ -1,0 +1,42 @@
+W1023 13:16:47.023927   33035 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+online_statistics: chain_length=10, exponential moving average window: 50, decay=0.800
+num_params: 25776
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Stopping early because of :  Legacy callback <prepare.TrainingBudget object at 0x70a4701b09b0> requested to stop the run.
+╭───────────────────────────── Timing Information ─────────────────────────────╮
+│ Total: 645.817                                                               │
+│ └── (99.8%) | VMC_SR.compute_loss_and_update : 644.359 s                     │
+│     ├── (48.0%) | FoundationalQuantumState.local_estimators : 309.455 s      │
+│     │   └── (29.2%) | FoundationalQuantumState.sample : 90.290 s             │
+│     │       └── (33.7%) | sampling n_discarded samples : 30.409 s            │
+│     └── (45.8%) | _sr_srt_common : 294.837 s                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+final mean energy/N (sampled): -0.564751
+  J2=0.3250  E/N=-0.56566811  E0/N=-0.56581982  rel_err=2.681e-04
+  J2=0.3750  E/N=-0.55023400  E0/N=-0.55046832  rel_err=4.257e-04
+  J2=0.4250  E/N=-0.53671532  E0/N=-0.53708379  rel_err=6.861e-04
+  J2=0.4750  E/N=-0.52588386  E0/N=-0.52644509  rel_err=1.066e-03
+  J2=0.5250  E/N=-0.51905923  E0/N=-0.51982914  rel_err=1.481e-03
+  J2=0.5750  E/N=-0.51842544  E0/N=-0.51931133  rel_err=1.706e-03
+  J2=0.6250  E/N=-0.52653072  E0/N=-0.52705066  rel_err=9.865e-04
+  J2=0.6750  E/N=-0.54319504  E0/N=-0.54335981  rel_err=3.033e-04
+  J2=0.7250  E/N=-0.56617409  E0/N=-0.56630967  rel_err=2.394e-04
+  J2=0.7750  E/N=-0.59318295  E0/N=-0.59339194  rel_err=3.522e-04
+  probe J2=0.3985  rel_err=5.329e-04  (0.78x neighbouring test points)
+  probe J2=0.4880  rel_err=1.177e-03  (0.79x neighbouring test points)
+  probe J2=0.3608  rel_err=3.722e-04  (0.87x neighbouring test points)
+---
+status: ok
+score: -3.227409
+mean_rel_err: 0.000751
+max_rel_err: 0.001706
+worst_j2: 0.575000
+probe_ratio: 0.874273
+training_seconds: 600.854781
+eval_seconds: 137.282937
+total_seconds: 794.446103
+num_steps: 282
+num_params: 25776
+peak_vram_gb: 3.902308
+device: NVIDIA H200 NVL MIG 1g.18gb

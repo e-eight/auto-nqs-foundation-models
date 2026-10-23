@@ -1,0 +1,42 @@
+online_statistics: chain_length=10, exponential moving average window: 50, decay=0.800
+num_params: 25826
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Stopping early because of :  Legacy callback <prepare.TrainingBudget object at 0x7c53241b1070> requested to stop the run.
+╭───────────────────────────── Timing Information ─────────────────────────────╮
+│ Total: 658.516                                                               │
+│ └── (99.7%) | VMC_SR.compute_loss_and_update : 656.674 s                     │
+│     ├── (21.1%) | FoundationalQuantumState.local_estimators : 138.478 s      │
+│     │   └── (25.7%) | FoundationalQuantumState.sample : 35.648 s             │
+│     │       └── (19.6%) | sampling n_discarded samples : 6.999 s             │
+│     └── (75.6%) | _sr_srt_common : 496.555 s                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+averaged weights over the last 18 steps
+final mean energy/N (sampled): nan
+  J2=0.3250  E/N=nan  E0/N=-0.56581982  rel_err=nan
+  J2=0.3750  E/N=nan  E0/N=-0.55046832  rel_err=nan
+  J2=0.4250  E/N=nan  E0/N=-0.53708379  rel_err=nan
+  J2=0.4750  E/N=nan  E0/N=-0.52644509  rel_err=nan
+  J2=0.5250  E/N=nan  E0/N=-0.51982914  rel_err=nan
+  J2=0.5750  E/N=nan  E0/N=-0.51931133  rel_err=nan
+  J2=0.6250  E/N=nan  E0/N=-0.52705066  rel_err=nan
+  J2=0.6750  E/N=nan  E0/N=-0.54335981  rel_err=nan
+  J2=0.7250  E/N=nan  E0/N=-0.56630967  rel_err=nan
+  J2=0.7750  E/N=nan  E0/N=-0.59339194  rel_err=nan
+  probe J2=0.4273  rel_err=nan  (nanx neighbouring test points)
+  probe J2=0.6526  rel_err=nan  (nanx neighbouring test points)
+  probe J2=0.3814  rel_err=nan  (nanx neighbouring test points)
+---
+status: ok
+score: nan
+mean_rel_err: nan
+max_rel_err: nan
+worst_j2: 0.325000
+probe_ratio: 0.000000
+training_seconds: 605.802303
+eval_seconds: 144.002317
+total_seconds: 814.176146
+num_steps: 124
+num_params: 25826
+peak_vram_gb: 6.947420
+device: NVIDIA H200 NVL MIG 1g.18gb

@@ -1,0 +1,131 @@
+01 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.626919   35075 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.627091   35077 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.626986   35088 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.627512   35071 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.630539   35123 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+W1023 13:45:06.632793   35102 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.632862   35077 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.633053   35120 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.634608   35097 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.635208   35087 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.635486   35078 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+W1023 13:45:06.638412   35071 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+E1023 13:45:06.643623   35091 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.644419   35087 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.646285   35079 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+W1023 13:45:06.648305   35123 hlo_rematerialization.cc:3402] Can't reduce memory use below 2.80GiB (3003678720 bytes) by rematerialization; only reduced to 2.83GiB (3037233168 bytes), down from 2.83GiB (3037233168 bytes) originally
+E1023 13:45:06.723360   35114 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+W1023 13:45:06.729430   35114 hlo_rematerialization.cc:3402] Can't reduce memory use below 11.19GiB (12014714880 bytes) by rematerialization; only reduced to 11.22GiB (12048269328 bytes), down from 11.22GiB (12048269328 bytes) originally
+E1023 13:45:06.731152   35120 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.737341   35122 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+E1023 13:45:06.738637   35109 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+W1023 13:45:06.745886   35122 hlo_rematerialization.cc:3402] Can't reduce memory use below 11.19GiB (12014714880 bytes) by rematerialization; only reduced to 11.22GiB (12048269328 bytes), down from 11.22GiB (12048269328 bytes) originally
+E1023 13:45:06.749687   35086 gpu_hlo_schedule.cc:1076] The byte size of input/output arguments (15018409984) exceeds the base limit (13743895347). This indicates an error in the calculation!
+W1023 13:45:06.749854   35109 hlo_rematerialization.cc:3402] Can't reduce memory use below 11.19GiB (12014714880 bytes) by rematerialization; only reduced to 11.22GiB (12048269328 bytes), down from 11.22GiB (12048269328 bytes) originally
+W1023 13:45:06.755184   35086 hlo_rematerialization.cc:3402] Can't reduce memory use below 11.19GiB (12014714880 bytes) by rematerialization; only reduced to 11.22GiB (12048269328 bytes), down from 11.22GiB (12048269328 bytes) originally
+W1023 13:45:11.446601   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.489325   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.490155   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.490968   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.491773   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.492590   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.493402   35079 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 11.21GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.494444   35093 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 2.81GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.710256   35093 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 2.81GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1023 13:45:11.711082   35093 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 2.81GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+E1023 13:45:11.723314   34758 config_assigner.cc:536] Could not get config for HLO: %gemm_fusion_dot.5 = f32[23466240,32]{1,0} fusion(%bitcast.129.0, %wrapped_convert.8), kind=kCustom, calls=
+(param_0.4: f32[23466240,128], param_1.4: f32[128,32]) -> f32[23466240,32] {
+  %param_0.4 = f32[23466240,128]{1,0} parameter(0)
+  %param_1.4 = f32[128,32]{1,0} parameter(1)
+  ROOT %dot.33 = f32[23466240,32]{1,0} dot(%param_0.4, %param_1.4), lhs_contracting_dims={1}, rhs_contracting_dims={0}, operand_precision={highest,highest}, metadata={op_name="jit(foundational_kernel_jax)/Symmetrized/net/Dense_1/dot_general" stack_frame_id=175}
+}, metadata={op_name="jit(foundational_kernel_jax)/Symmetrized/net/Dense_1/dot_general" deduplicated_name="gemm_fusion_dot.5" stack_frame_id=175}, backend_config={"operation_queue_id":"0","fusion_backend_config":{"kind":"__triton_gemm"},"force_earliest_schedule":false,"reification_cost":[],"device_type":"DEVICE_TYPE_INVALID"}. Status: NOT_FOUND: All configs failed during profiling or were excluded from selection.
+Failures (17):
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+=== Source Location Trace: === 
+external/xla+/xla/backends/autotuner/config_selector.cc:88
+external/xla+/xla/backends/autotuner/autotuner.cc:246
+
+E1023 13:45:11.783090   34758 config_assigner.cc:536] Could not get config for HLO: %gemm_fusion_dot.4 = f32[23466240,128]{1,0} fusion(%bitcast.128.0, %wrapped_convert.6), kind=kCustom, calls=
+(param_0.3: f32[23466240,32], param_1.3: f32[32,128]) -> f32[23466240,128] {
+  %param_0.3 = f32[23466240,32]{1,0} parameter(0)
+  %param_1.3 = f32[32,128]{1,0} parameter(1)
+  ROOT %dot.32 = f32[23466240,128]{1,0} dot(%param_0.3, %param_1.3), lhs_contracting_dims={1}, rhs_contracting_dims={0}, operand_precision={highest,highest}, metadata={op_name="jit(foundational_kernel_jax)/Symmetrized/net/Dense_2/dot_general" stack_frame_id=168}
+}, metadata={op_name="jit(foundational_kernel_jax)/Symmetrized/net/Dense_2/dot_general" deduplicated_name="gemm_fusion_dot.4" stack_frame_id=168}, backend_config={"operation_queue_id":"0","fusion_backend_config":{"kind":"__triton_gemm"},"force_earliest_schedule":false,"reification_cost":[],"device_type":"DEVICE_TYPE_INVALID"}. Status: NOT_FOUND: All configs failed during profiling or were excluded from selection.
+Failures (7):
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 11.21GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+=== Source Location Trace: === 
+external/xla+/xla/backends/autotuner/config_selector.cc:88
+external/xla+/xla/backends/autotuner/autotuner.cc:246
+
+online_statistics: chain_length=10, exponential moving average window: 50, decay=0.800
+num_params: 25776
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Traceback (most recent call last):
+  File "/home/soham/auto-nqs/default/train.py", line 186, in <module>
+    driver.run(10**9, out=log, callback=budget, show_progress=False, timeit=True)
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 516, in run
+    raise error
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 468, in run
+    self._loss_stats, self._dp = self.compute_loss_and_update()
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 292, in timed_function
+    result = fun(*args, **kwargs)  # type: ignore[misc]
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/driver/ngd/driver_vmc_ngd.py", line 132, in compute_loss_and_update
+    local_energies = self.state.local_estimators(self._ham)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 292, in timed_function
+    result = fun(*args, **kwargs)  # type: ignore[misc]
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 540, in local_estimators
+    return nk_local_estimators(self, op, chunk_size)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "src/plum/_function.py", line 502, in __call__
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/vqs/state.py", line 812, in _foundational_local_estimators
+    data = jax.jit(foundational_kernel_jax, static_argnames=("logpsi",))(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+jax.errors.JaxRuntimeError: NOT_FOUND: Failed to get configs for: 2 out of 67 instructions. See logs for all failures. Example failure: 
+All configs failed during profiling or were excluded from selection.
+Failures (17):
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+EXECUTION FAILED: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 2.81GiB with allocator GPU_0_bfc on device 0. [tf-allocator-allocation-error='']
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
