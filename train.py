@@ -31,9 +31,9 @@ NUM_LAYERS = 2
 D_MODEL = 32
 HEADS = 4
 PATCH = prepare.LX  # one token per lattice row
-N_REPLICAS = 28  # couplings trained simultaneously
-CHAINS_PER_REPLICA = 18
-SAMPLES_PER_REPLICA = 144
+N_REPLICAS = 56  # couplings trained simultaneously
+CHAINS_PER_REPLICA = 9
+SAMPLES_PER_REPLICA = 72
 LEARNING_RATE = 6e-2  # peak of a warmup + cosine decay schedule
 LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
@@ -115,10 +115,18 @@ vstate = nkf.FoundationalQuantumState(
     seed=SEED,
     chunk_size=CHUNK_SIZE,
 )
-# Training couplings: a 0.025 grid offset by half a step (0.2125, 0.2375, ...,
-# 0.8875), which keeps every point 0.0125 away from the test couplings.
-J2_STEP = (prepare.J2_MAX - prepare.J2_MIN) / N_REPLICAS
-vstate.parameter_array = (prepare.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
+# Training couplings: evenly spaced over [J2_MIN, J2_MAX] with a window of
+# +-MIN_TEST_DISTANCE cut out around each of the ten documented evaluation
+# couplings (0.325, 0.375, ..., 0.775), as the distance rule requires. They are
+# used only to stay away from those points.
+_EVAL_LATTICE = prepare.J2_MIN + 0.125 + 0.05 * np.arange(10)
+_GAP = prepare.MIN_TEST_DISTANCE + 1e-4
+_edges = np.concatenate([[prepare.J2_MIN], np.ravel([[c - _GAP, c + _GAP] for c in _EVAL_LATTICE]), [prepare.J2_MAX]])
+_lo, _hi = _edges[0::2], _edges[1::2]
+_cum = np.concatenate([[0.0], np.cumsum(_hi - _lo)])
+_u = _cum[-1] * (np.arange(N_REPLICAS) + 0.5) / N_REPLICAS
+_seg = np.searchsorted(_cum, _u, side="right") - 1
+vstate.parameter_array = jnp.asarray(_lo[_seg] + _u - _cum[_seg]).reshape(-1, 1)
 
 driver = nkf.VMC_SR(
     ham,
