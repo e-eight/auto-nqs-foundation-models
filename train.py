@@ -30,7 +30,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 # ---------------------------------------------------------------------------
 
 SEED = 0
-NUM_LAYERS = 2
+NUM_LAYERS = 3
 D_MODEL = 32
 HEADS = 8
 PATCH = prepare.LX  # one token per lattice row
