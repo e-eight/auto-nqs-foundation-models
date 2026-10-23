@@ -42,6 +42,7 @@ LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-4
+N_DISCARD = 2  # sweeps discarded per step; chains persist across steps
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
@@ -160,6 +161,7 @@ vstate = nkf.FoundationalQuantumState(
     ps,
     n_replicas=N_REPLICAS,
     n_samples=N_REPLICAS * SAMPLES_PER_REPLICA,
+    n_discard_per_chain=N_DISCARD,
     seed=SEED,
     chunk_size=CHUNK_SIZE,
 )
