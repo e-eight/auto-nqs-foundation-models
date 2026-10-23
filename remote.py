@@ -270,9 +270,14 @@ if [ -z "$UV" ]; then
   ~/.pixi/bin/pixi global install uv >/dev/null && UV=~/.pixi/bin/uv
 fi
 WORK={work}
-if [ ! -d "$WORK/.git" ]; then mkdir -p {cfg['remote_root']}; "$GH" repo clone {cfg['repo']} "$WORK" -- --quiet; fi
-cd "$WORK"
+# HTTPS with gh as credential helper: does not depend on SSH keys or known_hosts.
 git_auth() {{ git -c credential.helper= -c "credential.helper=!$GH auth git-credential" "$@"; }}
+if [ ! -d "$WORK/.git" ]; then
+  rm -rf "$WORK"; mkdir -p {cfg['remote_root']}
+  git_auth clone --quiet https://github.com/{cfg['repo']}.git "$WORK"
+fi
+cd "$WORK"
+git remote set-url origin https://github.com/{cfg['repo']}.git
 """
 
 
@@ -407,6 +412,8 @@ def cmd_setup(hub, cfg, args):
     print("\n".join(text.splitlines()[-40:]))
     print("---")
     print(f"setup: {'ok' if code == 0 else 'failed'}")
+    if code != 0:
+        sys.exit(1)
 
 
 def cmd_status(hub, cfg, args):
