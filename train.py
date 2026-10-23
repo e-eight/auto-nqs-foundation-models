@@ -14,6 +14,7 @@ t_start = time.time()
 
 import jax.numpy as jnp
 import netket as nk
+import numpy as np
 import netket_foundation as nkf
 import optax
 from netket_foundation.model import ViTFNQS
@@ -74,7 +75,21 @@ vstate = nkf.FoundationalQuantumState(
     chunk_size=CHUNK_SIZE,
 )
 # Training couplings: multiples of 0.05 in [J2_MIN, J2_MAX], between the test points.
-vstate.parameter_array = jnp.linspace(prepare.J2_MIN, prepare.J2_MAX, N_REPLICAS).reshape(-1, 1)
+# During training each replica is redrawn every step uniformly within its grid
+# cell (stratified sampling of J2), so the whole range is covered; the final
+# parameter_array is reset to the grid.
+J2_GRID = np.linspace(prepare.J2_MIN, prepare.J2_MAX, N_REPLICAS)
+J2_HALF_CELL = 0.5 * (J2_GRID[1] - J2_GRID[0])
+vstate.parameter_array = jnp.asarray(J2_GRID).reshape(-1, 1)
+rng = np.random.default_rng(SEED)
+
+
+def resample_couplings(step, log_data, driver):
+    j2 = J2_GRID + rng.uniform(-J2_HALF_CELL, J2_HALF_CELL, N_REPLICAS)
+    j2 = np.clip(j2, prepare.J2_MIN, prepare.J2_MAX)
+    driver.state.parameter_array = jnp.asarray(j2).reshape(-1, 1)
+    return True
+
 
 driver = nkf.VMC_SR(
     ham,
@@ -99,7 +114,8 @@ print(f"train_j2: {[round(float(p), 4) for p in vstate.parameter_array.ravel()]}
 
 budget = prepare.TrainingBudget()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=budget, show_progress=False)
+driver.run(10**9, out=log, callback=[resample_couplings, budget], show_progress=False)
+vstate.parameter_array = jnp.asarray(J2_GRID).reshape(-1, 1)
 
 energies = log.data["Mean Energy"]["Mean"]
 print(f"final mean energy/N (sampled): {float(energies[-1].real) / hi.size:.6f}")
