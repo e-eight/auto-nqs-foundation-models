@@ -12,6 +12,7 @@ import time
 
 t_start = time.time()
 
+import flax.linen as nn
 import jax.numpy as jnp
 import netket as nk
 import netket_foundation as nkf
@@ -45,7 +46,28 @@ hi = prepare.hilbert()
 ps = prepare.parameter_space()
 ham = prepare.hamiltonian(hi, ps)
 
-model = ViTFNQS(
+# Marshall sign: (-1)^(number of up spins on sublattice A), exact for the
+# unfrustrated Heisenberg model but wrong in the stripe phase, so it is gated
+# by a learned sigmoid in J2 (on in the Neel region, off at large J2). The
+# complex network learns the remaining phase.
+SUBLATTICE_A = jnp.asarray(
+    [(x + y) % 2 == 0 for y in range(prepare.LY) for x in range(prepare.LX)], dtype=jnp.float64
+)
+
+
+class MarshallSign(nn.Module):
+    net: nn.Module
+
+    @nn.compact
+    def __call__(self, x):
+        center = self.param("center", nn.initializers.constant(0.55), (), jnp.float64)
+        slope = self.param("slope", nn.initializers.constant(20.0), (), jnp.float64)
+        gate = nn.sigmoid(slope * (center - x[..., -1]))
+        n_up_a = jnp.sum((1 + x[..., : prepare.N_SITES]) / 2 * SUBLATTICE_A, axis=-1)
+        return self.net(x) + 1j * jnp.pi * gate * n_up_a
+
+
+vit = ViTFNQS(
     num_layers=NUM_LAYERS,
     d_model=D_MODEL,
     heads=HEADS,
@@ -57,6 +79,7 @@ model = ViTFNQS(
     transl_invariant=True,  # translation along rows-of-the-lattice (PBC in y)
     two_dimensional=False,
 )
+model = MarshallSign(vit)
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=prepare.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
