@@ -44,6 +44,7 @@ DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H2
 DIAG_SHIFT = 1e-4
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
+AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
 # ---------------------------------------------------------------------------
@@ -182,8 +183,31 @@ print(f"train_j2: {[round(float(p), 4) for p in vstate.parameter_array.ravel()]}
 # ---------------------------------------------------------------------------
 
 budget = prepare.TrainingBudget()
+
+
+class WeightAverage:
+    """Polyak averaging of the parameters over the end of training, to cancel
+    the step-to-step noise of the stochastic SR updates."""
+
+    def __init__(self):
+        self.mean, self.count = None, 0
+
+    def __call__(self, step, log_data, driver):
+        if budget.elapsed >= (1 - AVERAGE_FRACTION) * budget.seconds:
+            self.count += 1
+            p = driver.state.parameters
+            self.mean = p if self.mean is None else jax.tree_util.tree_map(
+                lambda m, x: m + (x - m) / self.count, self.mean, p
+            )
+        return True
+
+
+average = WeightAverage()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=budget, show_progress=False, timeit=True)
+driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
+print(f"averaged weights over the last {average.count} steps")
+if average.count:
+    vstate.parameters = average.mean
 
 energies = log.data["Mean Energy"]["Mean"]
 print(f"final mean energy/N (sampled): {float(energies[-1].real) / hi.size:.6f}")
