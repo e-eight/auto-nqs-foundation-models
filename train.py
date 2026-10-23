@@ -132,9 +132,18 @@ class TwoSignViT(nn.Module):
         h = spins.reshape(*spins.shape[:-1], -1, PATCH)
         h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
         h = dense(D_MODEL)(h.astype(DTYPE))
+        j2 = coups[..., None, :].astype(DTYPE)  # (..., 1, 1), broadcast over tokens
+
+        def film(h):
+            """LayerNorm with a J2-dependent scale and shift (FiLM), starting at identity."""
+            gamma, beta = jnp.split(
+                nn.Dense(2 * D_MODEL, kernel_init=nn.initializers.zeros, dtype=DTYPE, param_dtype=jnp.float64)(j2), 2, -1
+            )
+            return layer_norm()(h) * (1 + gamma) + beta
+
         for _ in range(NUM_LAYERS):
-            h = h + FactoredAttention()(layer_norm()(h))
-            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
+            h = h + FactoredAttention()(film(h))
+            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(film(h))))
         h = h.sum(axis=-2)
         f1, f2 = (self.head(h) for _ in range(2))
         # Learnable J2-dependent tilt between the two branches, initialised so the
