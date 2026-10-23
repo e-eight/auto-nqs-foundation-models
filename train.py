@@ -31,9 +31,9 @@ NUM_LAYERS = 2
 D_MODEL = 32
 HEADS = 4
 PATCH = prepare.LX  # one token per lattice row
-N_REPLICAS = 15  # couplings trained simultaneously
-CHAINS_PER_REPLICA = 34
-SAMPLES_PER_REPLICA = 272
+N_REPLICAS = 28  # couplings trained simultaneously
+CHAINS_PER_REPLICA = 18
+SAMPLES_PER_REPLICA = 144
 LEARNING_RATE = 6e-2  # peak of a warmup + cosine decay schedule
 LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
@@ -115,8 +115,10 @@ vstate = nkf.FoundationalQuantumState(
     seed=SEED,
     chunk_size=CHUNK_SIZE,
 )
-# Training couplings: multiples of 0.05 in [J2_MIN, J2_MAX], between the test points.
-vstate.parameter_array = jnp.linspace(prepare.J2_MIN, prepare.J2_MAX, N_REPLICAS).reshape(-1, 1)
+# Training couplings: a 0.025 grid offset by half a step (0.2125, 0.2375, ...,
+# 0.8875), which keeps every point 0.0125 away from the test couplings.
+J2_STEP = (prepare.J2_MAX - prepare.J2_MIN) / N_REPLICAS
+vstate.parameter_array = (prepare.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
 
 driver = nkf.VMC_SR(
     ham,
