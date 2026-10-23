@@ -4,9 +4,10 @@ hub_url = "https://jupyter.ncsa.illinois.edu"
 user = "soham"
 token_file = "~/.config/icrn/token"
 
-# Named server used for experiments. ICRN allows one default + one named server
-# per user; "" would mean the default server (remote.py may restart it).
-server = "nqs"
+# Server used for experiments: "" is the default server, anything else a named
+# server (ICRN allows one default + one named per user). remote.py restarts this
+# server if it is running without a GPU.
+server = ""
 
 # GitHub repo used to move code to ICRN, and paths on ICRN.
 repo = "e-eight/auto-nqs-foundation-models"

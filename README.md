@@ -34,12 +34,12 @@ how well it fits a few points.
 ## How it runs
 
 ```
-local (agent + git)                         ICRN (JupyterHub, server "nqs")
+local (agent + git)                         ICRN (JupyterHub, default server)
 ───────────────────                         ───────────────────────────────
 git commit train.py
 uv run remote.py run ── git push --force ─► github.com/e-eight/auto-nqs-foundation-models
          │                                              │
-         ├── Hub API: start server (H200 → A100) ──► ~/auto-nqs/nqs: git fetch + checkout <sha>
+         ├── Hub API: start server (H200 → A100) ──► ~/auto-nqs/default: git fetch + checkout <sha>
          ├── kernel websocket: launch detached ───►  uv sync --frozen --extra cuda; uv run train.py
          ├── poll every 30 s ◄────────────────────   ~/auto-nqs/runs/<sha>-<gpu>-<time>/run.log
          └── prints summary; caches score per (commit, GPU type) in .autoresearch/
@@ -68,7 +68,7 @@ uv run remote.py run ── git push --force ─► github.com/e-eight/auto-nqs-
    > Have a look at program.md and let's kick off a new experiment! Let's do the setup first.
 
 Other commands: `uv run remote.py status`, `uv run remote.py stop`. To run two
-agents on two GPUs, give the second one `--server ""` (your default server) and a
+agents on two GPUs, give the second one `--server nqs` (a named server) and a
 separate branch.
 
 ## Notes
