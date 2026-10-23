@@ -18,7 +18,7 @@ import netket as nk
 import numpy as np
 import netket_foundation as nkf
 import optax
-from netket_foundation.model import ViTFNQS
+from netket_foundation._src.model.vit import Encoder, OutputHead, extract_patches1d
 
 import prepare
 
@@ -73,19 +73,35 @@ class Symmetrized(nn.Module):
         return m[..., 0] + jnp.log(jnp.mean(jnp.exp(lp - m), axis=-1))
 
 
-vit = ViTFNQS(
-    num_layers=NUM_LAYERS,
-    d_model=D_MODEL,
-    heads=HEADS,
-    L_eff=hi.size // PATCH,
-    n_coups=ps.size,
-    b=PATCH,
-    complex=True,  # J1-J2 amplitudes are not positive (Marshall sign and beyond)
-    disorder=False,
-    transl_invariant=True,  # translation along rows-of-the-lattice (PBC in y)
-    two_dimensional=False,
+SUBLATTICE_A = np.array(
+    [(x + y) % 2 == 0 for y in range(prepare.LY) for x in range(prepare.LX)], dtype=np.float64
 )
-model = Symmetrized(vit)
+
+
+class TwoSignViT(nn.Module):
+    """Foundation ViT (couplings concatenated to each row patch) whose shared
+    encoder feeds two complex output heads, combined as
+
+        psi = exp(f1) * Marshall(s) + exp(f2),
+
+    so the network can pick the Marshall sign (Neel side) or a learned phase
+    (stripe side) per coupling without fractional phases."""
+
+    @nn.compact
+    def __call__(self, x):
+        spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
+        h = extract_patches1d(spins, PATCH)
+        h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
+        h = nn.Dense(D_MODEL, kernel_init=nn.initializers.xavier_uniform(), param_dtype=jnp.float64)(h)
+        h = Encoder(NUM_LAYERS, D_MODEL, HEADS, prepare.N_SITES // PATCH, transl_invariant=True)(h)
+        f1 = OutputHead(D_MODEL, complex=True)(h)
+        f2 = OutputHead(D_MODEL, complex=True)(h)
+        marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
+        m = jnp.maximum(f1.real, f2.real)
+        return m + jnp.log(jnp.exp(f1 - m) * marshall + jnp.exp(f2 - m))
+
+
+model = Symmetrized(TwoSignViT())
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=prepare.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
