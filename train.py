@@ -33,7 +33,7 @@ SEED = 0
 NUM_LAYERS = 2
 D_MODEL = 32
 HEADS = 4
-PATCH = prepare.LX  # one token per lattice row
+PATCH = 2  # 2x2 plaquette patches: a 2x3 grid of tokens on the 4x6 lattice
 N_REPLICAS = 28  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 18
 SAMPLES_PER_REPLICA = 180
@@ -54,13 +54,23 @@ hi = prepare.hilbert()
 ps = prepare.parameter_space()
 ham = prepare.hamiltonian(hi, ps)
 
-# Symmetries the network does not have built in: translations along x (the
-# row-token attention is already invariant under translations along y) and the
-# global spin flip, under which the singlet ground state on an even number of
-# sites is even. The amplitude is averaged over the group.
-X_SHIFTS = np.array(
-    [[y * prepare.LX + (x + dx) % prepare.LX for y in range(prepare.LY) for x in range(prepare.LX)]
-     for dx in range(prepare.LX)]
+# Symmetries the network does not have built in: translations by one site
+# within a plaquette (the plaquette-token attention is already invariant under
+# translations by whole plaquettes) and the global spin flip, under which the
+# singlet ground state on an even number of sites is even. The amplitude is
+# averaged over the group.
+def _site(x, y):
+    return (y % prepare.LY) * prepare.LX + x % prepare.LX
+
+
+SHIFTS = np.array(
+    [[_site(x + dx, y + dy) for y in range(prepare.LY) for x in range(prepare.LX)]
+     for dx in range(PATCH) for dy in range(PATCH)]
+)
+TOKENS_X, TOKENS_Y = prepare.LX // PATCH, prepare.LY // PATCH
+PATCH_SITES = np.array(  # (token, site in plaquette), tokens row-major over the plaquette grid
+    [[_site(PATCH * tx + wx, PATCH * ty + wy) for wy in range(PATCH) for wx in range(PATCH)]
+     for ty in range(TOKENS_Y) for tx in range(TOKENS_X)]
 )
 
 
@@ -69,7 +79,7 @@ class Symmetrized(nn.Module):
 
     def __call__(self, x):
         spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
-        images = jnp.concatenate([spins[..., X_SHIFTS], -spins[..., X_SHIFTS]], axis=-2)
+        images = jnp.concatenate([spins[..., SHIFTS], -spins[..., SHIFTS]], axis=-2)
         coups = jnp.broadcast_to(coups[..., None, :], (*images.shape[:-1], coups.shape[-1]))
         lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
         lp = lp.reshape(images.shape[:-1])
@@ -98,21 +108,23 @@ def log_cosh(x):
 
 
 class FactoredAttention(nn.Module):
-    """Attention with input-independent, translation-invariant weights J[h, j - i]
-    across row tokens (the ViT of Viteritti, Rende, Becca, PRL 2023)."""
+    """Attention with input-independent weights J[h, j - i] depending only on the
+    2D offset between plaquette tokens (the ViT of Viteritti, Rende, Becca, PRL 2023)."""
 
     @nn.compact
     def __call__(self, x):
-        n_tok = x.shape[-2]
-        J = self.param("J", nn.initializers.xavier_uniform(), (HEADS, n_tok), jnp.float64)
-        J = jnp.stack([jnp.roll(J, i, axis=-1) for i in range(n_tok)], axis=1).astype(DTYPE)  # (h, i, j)
+        J = self.param("J", nn.initializers.xavier_uniform(), (HEADS, TOKENS_Y, TOKENS_X), jnp.float64)
+        J = jnp.stack(
+            [jnp.roll(J, (ty, tx), axis=(1, 2)).reshape(HEADS, -1) for ty in range(TOKENS_Y) for tx in range(TOKENS_X)],
+            axis=1,
+        ).astype(DTYPE)  # (h, i, j)
         v = dense(D_MODEL)(x).reshape(*x.shape[:-1], HEADS, D_MODEL // HEADS)
         x = jnp.einsum("hij,...jhd->...ihd", J, v).reshape(*x.shape[:-1], D_MODEL)
         return dense(D_MODEL)(x)
 
 
 class TwoSignViT(nn.Module):
-    """Foundation ViT (couplings concatenated to each row patch, pre-norm encoder
+    """Foundation ViT (couplings concatenated to each plaquette patch, pre-norm encoder
     blocks) whose shared encoder feeds two complex output heads, combined as
 
         psi = exp(f1) * Marshall(s) + exp(f2),
@@ -128,7 +140,7 @@ class TwoSignViT(nn.Module):
     @nn.compact
     def __call__(self, x):
         spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
-        h = spins.reshape(*spins.shape[:-1], -1, PATCH)
+        h = spins[..., PATCH_SITES]
         h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
         h = dense(D_MODEL)(h.astype(DTYPE))
         for _ in range(NUM_LAYERS):
