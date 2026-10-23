@@ -30,7 +30,8 @@ D_MODEL = 32
 HEADS = 4
 PATCH = prepare.LX  # one token per lattice row
 N_REPLICAS = 15  # couplings trained simultaneously
-CHAINS_PER_REPLICA = 34
+CHAINS_PER_REPLICA = 136  # many short chains: 2 samples per chain
+N_DISCARD = 1  # sweeps discarded per step; chains persist across steps
 SAMPLES_PER_REPLICA = 272
 LEARNING_RATE = 4e-2  # peak of a warmup + cosine decay schedule
 LR_INIT, LR_END = 1e-2, 3e-3
@@ -70,6 +71,7 @@ vstate = nkf.FoundationalQuantumState(
     ps,
     n_replicas=N_REPLICAS,
     n_samples=N_REPLICAS * SAMPLES_PER_REPLICA,
+    n_discard_per_chain=N_DISCARD,
     seed=SEED,
     chunk_size=CHUNK_SIZE,
 )
