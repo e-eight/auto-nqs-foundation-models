@@ -56,13 +56,13 @@ ps = prepare.parameter_space()
 ham = prepare.hamiltonian(hi, ps)
 
 # Symmetries the network does not have built in: translations along x and the
-# mirror x -> -x (the row-token attention is already invariant under
-# translations along y), and the global spin flip, under which the singlet
+# mirrors x -> -x and y -> -y (the row-token attention is already invariant
+# under translations along y), and the global spin flip, under which the singlet
 # ground state on an even number of sites is even. The amplitude is averaged
 # over the group.
 X_SHIFTS = np.array(
-    [[y * prepare.LX + (sx * x + dx) % prepare.LX for y in range(prepare.LY) for x in range(prepare.LX)]
-     for sx in (1, -1) for dx in range(prepare.LX)]
+    [[(sy * y) % prepare.LY * prepare.LX + (sx * x + dx) % prepare.LX for y in range(prepare.LY) for x in range(prepare.LX)]
+     for sy in (1, -1) for sx in (1, -1) for dx in range(prepare.LX)]
 )
 
 
