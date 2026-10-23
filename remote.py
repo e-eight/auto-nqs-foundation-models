@@ -22,8 +22,10 @@ confirmation with --seeds 0,1,2 reuses the seed-0 screening run.
 """
 
 import argparse
+import fcntl
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -342,12 +344,17 @@ def load_scores():
 
 
 def save_score(key, rec):
-    scores = load_scores()
-    scores[key] = rec
+    """Add one result to the cache. Safe if several remote.py processes share
+    the directory: the read-modify-write holds an exclusive lock, and each
+    process writes its own temp file before the atomic rename."""
     STATE_DIR.mkdir(exist_ok=True)
-    tmp = SCORES.with_suffix(".tmp")
-    tmp.write_text(json.dumps(scores, indent=1))
-    tmp.replace(SCORES)
+    with open(STATE_DIR / "scores.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        scores = load_scores()
+        scores[key] = rec
+        tmp = SCORES.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(scores, indent=1))
+        tmp.replace(SCORES)
 
 
 def classify(code, summary):
