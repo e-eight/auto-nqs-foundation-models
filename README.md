@@ -2,24 +2,48 @@
 
 [autoresearch](https://github.com/karpathy/autoresearch) adapted to
 [netket_foundation](https://github.com/netket/netket_foundation). An AI agent edits
-`train.py` to improve a foundation neural quantum state for the J1–J2 Heisenberg
-model. Each experiment trains for a fixed 10 minutes on an ICRN GPU slice. The agent
-keeps changes that lower the exact held-out energy error and discards the rest.
+a task's `train.py` to improve a foundation neural quantum state. Each experiment
+trains for a fixed time on an ICRN GPU slice. The agent screens each idea with one
+seed, confirms it with three, and keeps only changes that improve the mean score
+by more than the seed-to-seed noise without making the worst seed worse.
+
+## Goals and roadmap
+
+1. Improve on Rende et al., arXiv:2502.09488: accuracy, cost and model size at fixed compute, and more Hamiltonians.
+2. Robustness to initialization: every claim is measured over seeds.
+3. Continuum systems from [Ketboard](https://ketworks.org/#benchmarks).
+
+| Phase | Task | Status |
+|---|---|---|
+| 0 | Harness: NaN → `diverged`, per-seed runs, multi-task layout | done |
+| A | `j1j2`: J1–J2 4×6, J2 ∈ [0.2, 0.9]; noise floor, then accuracy and robustness | ready |
+| B | `j1j2j3`: J1–J2–J3 on 4×6, a 2D grid of test couplings, exact scoring | planned |
+| B | size transfer: train on several lattice sizes, test on held-out sizes | planned |
+| C | `heg`: 3D electron gas, 7+7 electrons, simple cubic, Γ point, rs as the coupling | needs a feasibility check |
+
+Phase C needs harness work before an agent can use it. netket_foundation's
+`ParametrizedOperator` only handles discrete spaces, NetKet has no Ewald
+summation, and the references (TC-FCIQMC, DMC) are not exact. So the score is a
+Monte Carlo estimate with error bars, and it can go below the reference.
 
 ## Files
 
 | File | Role | Edited by |
 |---|---|---|
-| `prepare.py` | Lattice (4×6 PBC, Sz = 0), parametrized Hamiltonian, test couplings, `TrainingBudget`, exact evaluator, Lanczos references | nobody |
-| `train.py` | Model, sampler, training couplings, optimizer, loop | the agent |
-| `program.md` | Instructions for the agent | you |
+| `program.md` | Instructions for the agent, common to all tasks | you |
+| `tasks/<task>/README.md` | Task brief: problem, rules, history, ideas, literature | you |
+| `tasks/<task>/problem.py` | Problem definition, references, `TrainingBudget()`, evaluator | nobody |
+| `tasks/<task>/train.py` | Model, sampler, training couplings, optimizer, loop | the agent |
+| `harness.py` | Seeds, NaN-aware training budget, rule checks, summary block | nobody |
+| `prepare.py` | `uv run prepare.py --task <task>`: compute and cache references | nobody |
 | `remote.py` | Pushes the commit to GitHub and runs it on ICRN through the JupyterHub API | nobody |
 | `icrn.toml` | Hub URL, user, server name, GPU resource options, timeouts | you |
 
-## Metric
+## Metric (task `j1j2`)
 
 `score` = mean over J2 ∈ {0.325, 0.375, …, 0.775} of log10((E − E0)/|E0|). Lower is
-better.
+better. With several seeds, `score` is the mean over seeds and `worst_score` the
+highest.
 
 - **E** is the model's variational energy at that coupling. It is computed by exact
   summation over all 2,704,156 Sz = 0 configurations, so the score has no sampling
@@ -36,13 +60,13 @@ how well it fits a few points.
 ```
 local (agent + git)                         ICRN (JupyterHub, default server)
 ───────────────────                         ───────────────────────────────
-git commit train.py
+git commit tasks/<task>/train.py
 uv run remote.py run ── git push --force ─► github.com/e-eight/auto-nqs-foundation-models
          │                                              │
          ├── Hub API: start server (H200 → A100) ──► ~/auto-nqs/default: git fetch + checkout <sha>
-         ├── kernel websocket: launch detached ───►  uv sync --frozen --extra cuda; uv run train.py
-         ├── poll every 30 s ◄────────────────────   ~/auto-nqs/runs/<sha>-<gpu>-<time>/run.log
-         └── prints summary; caches score per (commit, GPU type) in .autoresearch/
+         ├── kernel websocket: launch detached ───►  uv sync; NQS_SEED=… uv run tasks/<task>/train.py
+         ├── poll every 30 s ◄────────────────────   ~/auto-nqs/runs/<task>-<sha>-<gpu>-<seeds>-<time>/run.log
+         └── prints summary; caches results per (task, commit, GPU type, seeds) in .autoresearch/
 ```
 
 - **Code** moves only through git.
@@ -59,17 +83,29 @@ uv run remote.py run ── git push --force ─► github.com/e-eight/auto-nqs-
 3. **Push `main`, then run setup:**
    ```
    git push -u origin main
-   uv run remote.py setup
+   uv run remote.py setup --task j1j2
    ```
    This starts the GPU server, clones the repo, installs the locked environment
    with CUDA JAX, and computes the reference energies.
 4. **Start the agent** in this directory (e.g. `claude`), with permissions set so it
    can run `git` and `uv run remote.py` unattended, and prompt:
-   > Have a look at program.md and let's kick off a new experiment! Let's do the setup first.
+   > Have a look at program.md and let's kick off a new experiment on task j1j2! Let's do the setup first.
 
-Other commands: `uv run remote.py status`, `uv run remote.py stop`. To run two
-agents on two GPUs, give the second one `--server nqs` (a named server) and a
-separate branch.
+Other commands: `uv run remote.py status`, `uv run remote.py stop`.
+
+**Two agents at once** (for example on two tasks): give each one its own working
+directory, branch and ICRN server.
+1. Commit everything on `main` first, including `.claude/settings.json`: a new worktree only gets committed files.
+2. Create the second checkout: `git worktree add ../nqs-agent2 main`.
+3. Start the second agent in `../nqs-agent2`, and tell it to add `--server nqs` (the named server) to every `remote.py` command.
+
+Each checkout then has its own `.autoresearch/` score cache, `run.log` and
+`results.tsv`. Two agents in one directory would reset and switch each other's
+branches. Run `remote.py setup` for a task once, before starting the agents:
+the reference-energy cache on ICRN is shared.
+
+To run a task locally (CPU JAX), set `PYTHONPATH` so that `harness` and `tasks`
+import: `PYTHONPATH=. uv run tasks/j1j2/train.py`.
 
 ## Notes
 
@@ -79,6 +115,9 @@ separate branch.
 - **Pinned versions.** `netket` and `netket-foundation` are pinned to exact git
   commits in `pyproject.toml`, because netket_foundation needs unreleased NetKet
   changes. `uv.lock` freezes the rest.
-- **Changing the problem.** To change the lattice or couplings, edit the constants
-  at the top of `prepare.py` on `main`. That starts a new, incomparable series of
+- **Changing or adding a problem.** Add a new task directory instead of editing an
+  existing `problem.py`: a changed problem starts a new, incomparable series of
   runs. Full enumeration works up to about 28 sites.
+- **NaNs.** Training stops at the first non-finite sampled energy, and the run
+  reports `status: diverged` instead of a NaN score. `remote.py` never uses a
+  run that isn't `ok` as a baseline.

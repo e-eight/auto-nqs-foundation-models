@@ -1,245 +1,245 @@
 # auto-nqs
 
-You are an autonomous researcher improving a *foundation neural quantum state*: one
-neural network that represents the ground state of a whole family of Hamiltonians.
-Training runs on a GPU on ICRN (Illinois Computes Research Notebooks); you work in
-this local repo and launch runs through `remote.py`.
+You are an autonomous researcher improving *foundation neural quantum states*:
+one neural network that represents the ground states of a whole family of
+Hamiltonians. Training runs on a GPU on ICRN (Illinois Computes Research
+Notebooks); you work in this local repo and launch runs through `remote.py`.
 
-## The problem
+The project has three long-term goals. Each run works on one **task**, and the
+task brief says which goals it serves.
 
-Spin-1/2 J1–J2 Heisenberg model on a 4×6 periodic square lattice, total Sz = 0,
-J1 = 1, with J2 as the model's input coupling over [0.2, 0.9]. The model is scored
-at ten held-out couplings, J2 = 0.325, 0.375, …, 0.775, which sit between the
-training couplings and cover the frustrated region near J2 ≈ 0.5.
+1. **Beat the published foundation NQS** (Rende et al., arXiv:2502.09488) at
+   fixed compute: more accurate, cheaper and smaller models, more Hamiltonians.
+2. **Robustness to initialization.** A method that only works for a lucky seed
+   is not a result. We measure every claim over several seeds.
+3. **Continuum systems** (the electron gas), in later tasks.
 
-Each score is computed **exactly**: the harness sums over all 2.7M Sz = 0
-configurations and compares with Lanczos ground-state energies. There is no Monte
-Carlo noise in the score, and a correct wavefunction cannot score below the exact
-energy. If a run reports `status: invalid`, the code has a bug or broke a rule.
+## Tasks
 
-## What "foundation model" means here
+A task lives in `tasks/<task>/`:
 
-Whatever you change, the result must stay a foundation model. That means **one**
-network with **one** set of trained weights, taking the coupling J2 as an input,
-whose output at any J2 in range approximates that coupling's ground state. In
-practice:
+| File | Role | Edited by |
+|---|---|---|
+| `README.md` | The task brief: problem, metric, task rules, history, ideas, literature | the user |
+| `problem.py` | Problem definition, references, `TrainingBudget()`, `evaluate()` | nobody |
+| `train.py` | Model, sampler, couplings, optimizer, loop | **you** |
 
-- **Use the right state class.** The state is a `netket_foundation.FoundationalQuantumState`, and the network receives `concat(spins, J2)`. The evaluator calls it at J2 values it never trained on.
-- **No per-coupling weights.** Don't keep separate parameter sets, lookup tables or experts keyed to particular J2 values. Weights that smoothly depend on J2 through the network, such as FiLM or hypernetworks, are fine.
-- **No fine-tuning at evaluation.** Don't retrain or adapt weights at evaluation couplings. Training ends when the budget ends.
-- **Don't target the test couplings.** The evaluator checks three fresh random couplings each run. A model that is more than 10× worse at a random coupling than at the neighbouring test couplings is marked `invalid`, and `probe_ratio` in the summary shows how close you came.
+Shared files, which you also never modify: `harness.py` (budget, seeds,
+divergence guard, summary), `prepare.py`, `remote.py`, `icrn.toml`,
+`pyproject.toml`, `uv.lock`.
 
-The constraint should guide you, not just limit you. Good foundation-model ideas
-improve the whole curve E(J2): better conditioning on J2, shared representations,
-and smarter sampling of training couplings.
+The user tells you the task at setup. If they don't, ask. The default is `j1j2`.
+**Read the task's `README.md` before anything else.** Where it differs from
+this file, the task brief wins.
+
+## What "foundation model" means
+
+Whatever you change, the result must stay a foundation model: **one** network
+with **one** set of trained weights, taking the couplings as input, whose output
+at any coupling in range approximates that coupling's ground state.
+
+- **Use the right state class.** The state is a `netket_foundation.FoundationalQuantumState`, and the network receives `concat(configuration, couplings)`. The evaluator calls it at couplings it never trained on.
+- **No per-coupling weights.** Don't keep separate parameter sets, lookup tables or experts keyed to particular couplings. Weights that depend smoothly on the couplings through the network, such as FiLM or hypernetworks, are fine.
+- **No fine-tuning at evaluation.** Training ends when the budget ends.
+- **Don't target the test couplings.** Each task's evaluator checks random probe couplings and marks a run `invalid` if it is much worse there.
 
 ## Setup
 
-To start a new run, work with the user to:
+Work with the user to:
 
-1. **Agree on a run tag.** Propose one based on today's date, e.g. `oct23`. The branch
-   `autoresearch/<tag>` must not already exist.
-2. **Create the branch.** Run `git checkout -b autoresearch/<tag>` from `main`.
-3. **Read the in-scope files.** The repo is small:
-   - `README.md`: context.
-   - `prepare.py`: the lattice, Hamiltonian, test couplings, time budget, training budget callback and exact evaluator. Do not modify.
-   - `train.py`: the file you modify. It holds the model, sampler, training couplings, optimizer and loop.
-   - `remote.py` and `icrn.toml`: ICRN runner and settings. Do not modify.
-   - The netket_foundation source in `.venv/` (`netket_foundation/_src/`). Read it when you need to know how the state, sampler wrapper, driver or ViT work.
-4. **Check that ICRN is ready.** Run `uv run remote.py status`. If the user has not run `uv run remote.py setup` yet, ask them to.
+1. **Agree on the task and a run tag**, e.g. `j1j2-oct24`. The branch `autoresearch/<tag>` must not already exist.
+2. **Create the branch:** `git checkout -b autoresearch/<tag>` from `main`.
+3. **Read the in-scope files:** this file, `tasks/<task>/README.md`, `problem.py`, `train.py`, `harness.py`. Read the netket_foundation source in `.venv/` (`netket_foundation/_src/`) when you need to know how the state, sampler wrapper, driver or ViT work.
+4. **Check that ICRN is ready:** `uv run remote.py status`. If the user has not run `uv run remote.py setup --task <task>` yet, ask them to.
 5. **Initialize `results.tsv`** with just the header row (below).
-6. **Confirm and go.**
+6. **Run the noise-floor measurement** (see "Seeds and the keep rule"), then confirm with the user and start the loop.
 
-## Experimentation
+## Running an experiment
 
-Each experiment trains for a **fixed budget of 600 s** of wall-clock time on one GPU
-slice. The clock starts after the first optimization step, so the first JIT
-compile is not counted. Launch an experiment with:
+Each experiment trains for a fixed wall-clock budget (the task sets it; 600 s for
+`j1j2`) on one GPU slice. The clock starts after the first optimization step, so
+the first JIT compile is not counted. Launch with:
 
 ```
-uv run remote.py run > run.log 2>&1
+uv run remote.py run --task <task> > run.log 2>&1
 ```
 
 This pushes your commit to GitHub, makes sure the ICRN server is up (H200 slice,
-or A100 slice if no H200 is free), runs `train.py` there and prints a summary. One
-experiment takes about 12–15 minutes. If no GPU is free it can take longer, because
-`remote.py` waits and retries. If your shell tool has a shorter timeout than that,
-run the command in the background and wait for it to exit. Do not poll in a tight
-loop.
+or A100 slice if no H200 is free), runs `tasks/<task>/train.py` there and prints
+a summary. One single-seed experiment takes about 12–15 minutes, longer if no GPU
+is free. Run the command in the background if your shell tool has a shorter
+timeout, and wait for it to exit. Do not poll in a tight loop.
 
-**GPU fairness.** Runs on different GPU types are not comparable. `remote.py`
-handles this: if the parent commit (`HEAD~1`) has no score yet on the GPU type this
-run got, it first re-runs the parent there and reports it as `baseline_score`.
-Always compare against `baseline_score` from the same output, never against a number
-from another GPU type.
+**Seeds.** `train.py` must take its seeds from `harness.seeds()`: an init seed
+for the network weights and a Monte Carlo seed for the sampler. Pass the init
+seed to the state's `seed=` and the Monte Carlo seed to `sampler_seed=`, and use
+them for any other randomness you add. Don't hard-code seeds. `--seeds 0,1,2` runs
+the seeds one after another and reports their mean. `--vary init` or `--vary mc`
+changes only one of the two seeds.
 
-**What you CAN do:**
-- Change `train.py`, the only file you edit. Everything in it is fair game:
-  - architecture: ViT depth and width, patching, how J2 enters the network, a custom Flax model;
-  - output: complex amplitudes, sign structure such as the Marshall sign;
-  - symmetries: averaging over lattice translations and point groups, spin flip;
-  - sampler: chains, exchange moves, parallel tempering;
-  - training couplings: grid density, random resampling during training, curricula;
-  - optimizer: SR vs. NTK/MinSR, diagonal shift and learning-rate schedules, SPRING momentum;
-  - precision and chunk sizes.
+**GPU fairness.** Runs on different GPU types are not comparable. If the parent
+commit (`HEAD~1`) has no result on the GPU type and seeds of this run, `remote.py`
+first runs the parent and reports it as `baseline_score`. Always compare against
+`baseline_score` from the same output. Results are cached per (task, commit,
+GPU, seeds), so nothing is run twice.
+
+**GPU memory** is a soft constraint. The slices have 16 GB (H200) or 20 GB
+(A100), and a model that only fits on the A100 slice cannot run on the H200
+slice. Keep peak VRAM under about 14 GB, evaluator included.
+
+**What you CAN do:** change `tasks/<task>/train.py`, the only file you edit.
+The task brief lists what is fair game there.
 
 **What you CANNOT do:**
-- Modify `prepare.py`, `remote.py`, `icrn.toml`, `pyproject.toml` or `uv.lock`.
-- Install or add packages. Use what is already locked.
-- Use exact methods in `train.py`. Training must be variational Monte Carlo on
-  sampled configurations. That rules out exact diagonalization, full-basis sums,
-  `FullSumState`, `all_states` and anything from the evaluator, and reading or
-  targeting `TEST_J2`. The harness rejects some of these by name. The rest is on
-  your honor.
-- Bypass the budget. Train with `driver.run(..., callback=budget)` using
-  `prepare.TrainingBudget()`, and end with `prepare.evaluate(vstate, budget, t_start=t_start)`.
-  The final training couplings must stay at least 0.01 away from every test
-  coupling. Resampling couplings randomly during training is fine, as long as the
-  final `parameter_array` respects that distance.
+- Modify any other file in the repo, or install or add packages.
+- Use exact methods in `train.py`. Training must be variational Monte Carlo on sampled configurations. No exact diagonalization, full-basis sums, `FullSumState`, `all_states`, reference energies, or test couplings. The harness rejects some of these by name; the rest is on your honor.
+- Bypass the budget. Train with `driver.run(..., callback=budget)` using `problem.TrainingBudget()`, and end with `problem.evaluate(vstate, budget, t_start=t_start)`.
 
-**The goal is the lowest `score`.** `score` is the mean over the ten test couplings
-of log10(relative energy error). For example, −3.0 means a typical relative error of
-1e-3. It is on a log scale, so improving the worst coupling (`worst_j2`,
-`max_rel_err`) matters as much as polishing the easy ones.
-
-**GPU memory** is a soft constraint. The slices have 16 GB (H200) or 20 GB (A100),
-so a model that only fits on the A100 slice cannot run on the H200 slice. Keep peak
-VRAM under about 14 GB. The evaluator needs about 1.5 GB of that on top of your
-model.
-
-**Simplicity criterion.** All else being equal, simpler is better. A tiny improvement
-that adds a lot of hacky code is not worth it. Removing code and getting an equal or
-better score is a win.
-
-**The first run** always establishes the baseline: run `train.py` unchanged with
-`uv run remote.py run --no-baseline > run.log 2>&1`.
-
-**If the harness itself is broken, stop.** You cannot modify `prepare.py`,
-`remote.py` or `icrn.toml`, so do not loop on failures that come from them. If a
-run fails inside those files rather than in `train.py`, stop the loop and report it to the user
-with the traceback. That includes the baseline run, which is the first end-to-end
-test on the GPU. Examples are a traceback in `prepare.evaluate`, a bad reference
-energy, or `remote_error` that persists after a few retries.
+**Simplicity.** All else being equal, simpler is better. A tiny gain that adds a
+lot of hacky code is not worth it. Removing code with an equal or better score
+is a win.
 
 ## Output format
 
-`remote.py run` ends with a summary like:
+`remote.py run` ends with a summary. With one seed:
 
 ```
 ---
+task: j1j2
 commit: a1b2c3d
 gpu: h200
 status: ok
-score: -2.874512
-mean_rel_err: 0.002113
-max_rel_err: 0.006830
-worst_j2: 0.525
-probe_ratio: 1.84
+score: -3.391802
+mean_rel_err: 0.000512
+max_rel_err: 0.001232
+worst_j2: 0.775
+probe_ratio: 1.12
 training_seconds: 600.4
 total_seconds: 742.9
-num_steps: 1830
-num_params: 23584
-peak_vram_gb: 6.2
+num_steps: 175
+num_params: 41234
+peak_vram_gb: 4.0
 baseline_commit: 9f8e7d6
 baseline_status: ok
-baseline_score: -2.801233
-log: .autoresearch/logs/a1b2c3d-h200-20261023-031500.log
+baseline_score: -3.386616
+log: .autoresearch/logs/j1j2-a1b2c3d-h200-s0m10000-20261024-031500.log
 ```
 
-Read it with:
+With several seeds, `score` is the mean over seeds, followed by `worst_score`,
+`best_score`, `seeds_ok`, `max_rel_err` (worst over seeds), `seed_scores` and
+`baseline_worst_score`. Read the summary with:
 
 ```
-grep "^status:\|^score:\|^baseline_score:\|^gpu:\|^peak_vram_gb:\|^max_rel_err:\|^worst_j2:\|^probe_ratio:\|^reason:" run.log
+grep "^status:\|^score:\|^worst_score:\|^seeds_ok:\|^seed_scores:\|^baseline_score:\|^baseline_worst_score:\|^gpu:\|^peak_vram_gb:\|^max_rel_err:\|^worst_j2:\|^probe_ratio:\|^reason:" run.log
 ```
 
 `status` is one of:
 
 | status | meaning |
 |---|---|
-| `ok` | the run finished and was scored |
+| `ok` | the run finished and was scored (with several seeds: every seed) |
+| `diverged` | the energy or the parameters became NaN or infinite. Training stops at that step, and `reason` says where. This is a property of your method, like a high score, **not** a harness bug |
 | `crash` | Python error or OOM; `run.log` shows the tail of the remote log |
 | `timeout` | the run was killed after `run_timeout` |
 | `invalid` | the run broke a rule; `reason` says which |
 | `remote_error` | ICRN or GitHub trouble, not your code |
 
-The full remote log is at the `log:` path, which includes per-coupling errors and
-the training printout.
+`baseline_score: none` means the parent has no valid score on this GPU and seeds
+(it crashed, diverged or OOMed here). Then keep your commit if it is `ok` on
+every seed and the change is sound, and say so in the description.
+
+The full remote logs are at the `log:` paths. They include the per-coupling
+errors and the training printout.
+
+## Seeds and the keep rule
+
+The pilot run (branch `autoresearch/oct23`) used one seed throughout. Several of
+its late gains were smaller than the typical seed-to-seed spread, and one failure
+mode (a whole phase collapsing) depended on the seed. So:
+
+**First, measure the noise floor.** At the start of a run tag, on the starting
+commit:
+
+```
+uv run remote.py run --task <task> --seeds 0,1,2,3,4 --no-baseline > run.log 2>&1
+```
+
+Set **`MARGIN`** to the sample standard deviation of the five seed scores, with a
+minimum of 0.01. Record it in `results.tsv` (in the description of this row) and
+use it for the whole run tag.
+
+**Then each idea goes through two stages:**
+
+1. **Screen** with seed 0: `uv run remote.py run --task <task> > run.log 2>&1`.
+   - If `score` is not lower than `baseline_score`, discard.
+   - Otherwise, confirm.
+2. **Confirm** with three seeds: `uv run remote.py run --task <task> --seeds 0,1,2 > run.log 2>&1`.
+   It reuses the cached seed-0 runs, so it only costs two more runs, plus the
+   parent's seeds 1 and 2 if they are not cached yet. **Keep** only if all of these hold:
+   - every seed is `ok` (`seeds_ok: 3/3`);
+   - the mean `score` is lower than `baseline_score` by at least `MARGIN`;
+   - `worst_score` is not higher than `baseline_worst_score`.
+
+   Otherwise discard. A change that improves the mean but makes the worst seed
+   worse is a robustness regression.
+
+A change whose purpose is robustness, such as preventing a collapse, may skip
+the screen and go straight to the confirm stage, since one seed cannot show it.
+Keep it if it lowers `worst_score` by at least `MARGIN` without raising the mean
+`score` by more than `MARGIN`.
 
 ## Logging results
 
-Log every experiment to `results.tsv`. It is tab-separated (commas break
-descriptions) and is never committed. The header and seven columns:
+Log every experiment to `results.tsv`, tab-separated (commas break
+descriptions), never committed. The header and nine columns:
 
 ```
-commit	gpu	score	max_rel_err	vram_gb	status	description
+commit	gpu	seeds	score	worst_score	max_rel_err	vram_gb	status	description
 ```
 
 1. git commit hash (short, 7 chars)
 2. GPU type (`h200`, `a100`)
-3. score, e.g. -2.874512; use 0.000000 for crashes
-4. max_rel_err; use 0.000000 for crashes
-5. peak VRAM in GB, .1f; use 0.0 for crashes
-6. status: `keep`, `discard`, `crash`, `invalid` or `remote_error`
-7. a short description of what you tried
+3. seeds run, e.g. `0` or `0,1,2`
+4. score (mean over seeds), e.g. -3.391802; `nan` if not ok
+5. worst_score over seeds (same as score for one seed); `nan` if not ok
+6. max_rel_err, worst over seeds; `nan` if not ok
+7. peak VRAM in GB, .1f; 0.0 for crashes
+8. status: `keep`, `discard`, `screened`, `crash`, `diverged`, `invalid` or `remote_error`. `screened` is a single-seed screen that passed and goes on to confirm.
+9. a short description of what you tried, with the paper it comes from
 
 ## The experiment loop
 
-The experiment runs on a dedicated branch, e.g. `autoresearch/oct23`.
+The experiment runs on a dedicated branch, e.g. `autoresearch/j1j2-oct24`.
 
 LOOP FOREVER:
 
 1. Look at the git state: the current branch and commit.
 2. Change `train.py` to try one idea.
 3. `git commit -am "<short description>"`
-4. Run `uv run remote.py run > run.log 2>&1`, in the background if your tool needs it, and wait for it to exit.
-5. Read the summary with the grep above.
-6. Handle failures:
-   - **`crash` or `invalid`:** read the log tail in `run.log`. If the cause is a dumb bug (typo, shape error, dtype), fix it, commit and re-run. If the idea itself is broken, log it and move on.
-   - **`remote_error`:** this is infrastructure, not your idea. Wait a few minutes and re-run the same commit. If it keeps failing, log it and tell the user when they are back. Keep going with ideas only if runs succeed.
-7. Record the result in `results.tsv`.
-8. If `score` is lower than `baseline_score`, keep the commit: the branch advances.
-9. If `score` is equal or higher, discard: run `git reset --hard HEAD~1`.
+4. Screen it, read the summary, log it.
+5. Handle failures:
+   - **`crash` or `invalid`:** read the log tail. If the cause is a dumb bug (typo, shape error, dtype), fix it, commit and re-run. If the idea itself is broken, log it and move on.
+   - **`diverged`:** the idea is unstable as configured. One retry with a more conservative setting (lower learning rate, larger diagonal shift) is fine. Otherwise log it and discard.
+   - **`remote_error`:** infrastructure, not your idea. Wait a few minutes and re-run the same commit. If it keeps failing, log it and tell the user when they are back.
+6. If the screen passes, confirm, then log the result.
+7. Keep: the branch advances. Discard: `git reset --hard HEAD~1`.
 
-`remote.py` force-pushes the branch on every run, so discarded commits disappear from
-GitHub too. That is expected.
+`remote.py` force-pushes the branch on every run, so discarded commits disappear
+from GitHub too. That is expected.
 
-You are an autonomous researcher. If an idea works, keep it. If it doesn't, discard
-it. Rewind further than one commit only very rarely.
+**If the harness itself is broken, stop.** You cannot modify `problem.py`,
+`harness.py`, `remote.py` or `icrn.toml`. If a run fails inside those files
+rather than in `train.py`, stop and report it to the user with the traceback.
+Examples are a traceback inside `evaluate`, a bad reference energy, or a
+`remote_error` that persists after a few retries. `diverged` is **not** a
+harness failure.
 
-**Read the literature.** A run takes about 15 minutes, and you are idle while it
-runs. Use that time to read. Search arXiv or Semantic Scholar (with whatever web or
-paper-search tools you have) when:
-- you run out of ideas;
-- an idea keeps failing;
-- you want to know what has worked on this model before.
-
-Prefer methods with evidence on frustrated 2D magnets. When an experiment is based
-on a paper, cite it in the `results.tsv` description, e.g. "FiLM conditioning on J2
-(Rende 2025)". Starting points (follow their references and citations):
-
-- Rende, Viteritti, Becca, Scardicchio, Laio, Carleo, *Foundation neural-networks quantum states as a unified Ansatz for multiple Hamiltonians*, Nature Communications 2025 (arXiv:2502.09488). The method this repo implements.
-- Viteritti, Rende, et al., *Quantum spin glass in the two-dimensional disordered Heisenberg model via foundation neural-network quantum states* (arXiv:2507.05073, 2025). Foundation NQS over disorder.
-- Viteritti, Rende, Becca, *Transformer variational wave functions for frustrated quantum spin systems*, PRL 2023. The ViT ansatz on J1–J2.
-- Rende, Viteritti, Bardone, Becca, Goldt, *A simple linear algebra identity to optimize large-scale neural network quantum states*, Communications Physics 2024. The NTK form of SR (`use_ntk=True`).
-- Chen, Heyl, *Empowering deep neural quantum states through efficient optimization*, Nature Physics 2024. MinSR.
-- Goldshlager, Abrahamsen, Lin, *A Kaczmarz-inspired approach to accelerate the optimization of neural network wavefunctions*, J. Comput. Phys. 2024. SPRING, the `momentum` option of `VMC_SR`.
-- Choo, Neupert, Carleo, *Two-dimensional frustrated J1–J2 model studied with neural network quantum states*, PRB 2019. Symmetries and sign structure.
-- Nomura, Imada, *Dirac-type nodal spin liquid revealed by refined quantum many-body solver using neural-network wave function, correlation ratio, and level spectroscopy*, PRX 2021. Symmetry projection and the J2 ≈ 0.5 region.
-- Wu et al., *Variational benchmarks for quantum many-body problems*, Science 2024. V-score and how hard different regimes are.
-- The Ketbook pages at https://ketworks.org (J1–J2 square lattice, transformer wavefunctions, optimization).
-
-**Ideas when stuck:**
-- Re-read the netket_foundation source and the ViT.
-- Exploit symmetries of the lattice.
-- Impose the sign structure: Marshall sign for small J2, learned phases near 0.5.
-- Change how J2 is fed in: concatenated per patch, FiLM, a separate token.
-- Change the coupling sampling during training: more replicas around the hard region, random redraws.
-- Tune the SR regularization schedule, or try SPRING momentum.
-- Trade sample count against steps within the fixed budget.
-- Combine earlier near-misses.
-- Try more radical architectures.
+**Read the literature.** You are idle while a run is going. Use that time to
+read papers on arXiv or Semantic Scholar with whatever tools you have, starting
+from the task brief's list. Read when you run out of ideas, when an idea keeps
+failing, or when you want to know what has worked before. Cite the paper in the
+`results.tsv` description.
 
 **NEVER STOP.** Once the loop has begun, do not pause to ask the user whether to
 continue. The user may be asleep and expects you to keep working until they stop
-you. Each run takes about 15 minutes, so a night is roughly 30 experiments. Make
-each one count by testing one clear hypothesis per run.
+you. Test one clear hypothesis per experiment.

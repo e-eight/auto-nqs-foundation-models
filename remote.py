@@ -3,22 +3,27 @@
 # dependencies = ["websocket-client>=1.7"]
 # ///
 """
-Run experiments on ICRN. DO NOT MODIFY (the agent only edits train.py).
+Run experiments on ICRN. DO NOT MODIFY (the agent only edits tasks/<task>/train.py).
 
 Code moves through GitHub: the current commit is force-pushed to its branch and
 checked out on ICRN. Commands run in a Jupyter kernel on an ICRN server started
 through the JupyterHub API (H200 slice preferred, A100 slice as fallback).
 
-    uv run remote.py setup            # once: clone, install, compute references
-    uv run remote.py run              # run HEAD (and HEAD~1 if it has no score on this GPU)
+    uv run remote.py setup [--task j1j2]   # once per task: clone, install, compute references
+    uv run remote.py run                   # run HEAD, seed 0 (and HEAD~1 if it has no score)
+    uv run remote.py run --seeds 0,1,2     # several seeds, one after another, plus their mean
+    uv run remote.py run --seeds 0,1,2 --vary init   # vary only the init seed (MC seed fixed)
     uv run remote.py run --no-baseline
     uv run remote.py status
     uv run remote.py stop
+
+Results are cached per (task, commit, GPU type, init seed, MC seed), so a
+confirmation with --seeds 0,1,2 reuses the seed-0 screening run.
 """
 
 import argparse
 import json
-import shlex
+import math
 import subprocess
 import sys
 import time
@@ -33,8 +38,13 @@ import websocket
 ROOT = Path(__file__).resolve().parent
 STATE_DIR = ROOT / ".autoresearch"
 SCORES = STATE_DIR / "scores.json"
+DEFAULT_TASK = "j1j2"
 SUMMARY_KEYS = ("status", "reason", "score", "mean_rel_err", "max_rel_err", "worst_j2", "probe_ratio",
                 "training_seconds", "total_seconds", "num_steps", "num_params", "peak_vram_gb")
+# Exit codes of harness.py; any other non-zero exit is a crash.
+EXIT_STATUS = {2: "invalid", 3: "diverged"}
+# Results worth caching: they depend on the code and seed, not on the infrastructure.
+CACHED_STATUSES = ("ok", "invalid", "diverged", "crash")
 
 
 def log(msg):
@@ -340,25 +350,88 @@ def save_score(key, rec):
     tmp.replace(SCORES)
 
 
-def run_commit(hub, cfg, sha, branch, gpu):
-    """Run train.py at `sha` on the server; return the summary dict."""
-    tag = f"{sha[:7]}-{gpu}-{time.strftime('%Y%m%d-%H%M%S')}"
-    script = checkout(sha, branch) + '"$UV" sync --frozen --extra cuda --quiet\n"$UV" run --frozen --extra cuda train.py\n'
-    log(f"running {sha[:7]} on {gpu}")
+def classify(code, summary):
+    """Turn the exit code and parsed summary of a run into a trustworthy status.
+
+    A run only counts as `ok` if it exited cleanly and printed a finite score;
+    a NaN or missing score is `diverged`, never a number to compare against.
+    """
+    if code is None:
+        return {"status": "timeout"}
+    status = summary.get("status")
+    if code == 0 and status == "ok":
+        try:
+            score = float(summary.get("score", "nan"))
+        except ValueError:
+            score = math.nan
+        if math.isfinite(score):
+            return summary
+        return {**summary, "status": "diverged", "reason": f"non-finite score ({summary.get('score')})"}
+    if code in EXIT_STATUS and status == EXIT_STATUS[code]:
+        return summary
+    return {"status": "crash"}
+
+
+def run_commit(hub, cfg, sha, branch, gpu, task, seed, mc_seed):
+    """Run tasks/<task>/train.py at `sha` with the given seeds; return the summary dict."""
+    tag = f"{task}-{sha[:7]}-{gpu}-s{seed}m{mc_seed}-{time.strftime('%Y%m%d-%H%M%S')}"
+    script = checkout(sha, branch) + (
+        '"$UV" sync --frozen --extra cuda --quiet\n'
+        f'NQS_SEED={seed} NQS_MC_SEED={mc_seed} PYTHONPATH="$WORK" '
+        f'"$UV" run --frozen --extra cuda tasks/{task}/train.py\n'
+    )
+    log(f"running {task} {sha[:7]} on {gpu} (seed {seed}, mc seed {mc_seed})")
     rundir = launch(hub, cfg, script, tag)
     code, text = wait_job(hub, cfg, rundir)
     (STATE_DIR / "logs").mkdir(parents=True, exist_ok=True)
     (STATE_DIR / "logs" / f"{tag}.log").write_text(text)
-    summary = parse_summary(text)
-    if code is None:
-        summary = {"status": "timeout"}
-    elif code != 0 and summary.get("status") != "invalid":
-        summary = {"status": "crash"}
+    summary = classify(code, parse_summary(text))
     summary["log"] = str((STATE_DIR / "logs" / f"{tag}.log").relative_to(ROOT))
     if summary.get("status") != "ok":
         print("--- remote log tail ---")
         print("\n".join(text.splitlines()[-60:]))
     return summary
+
+
+def score_key(task, sha, gpu, seed, mc_seed):
+    return f"{task}:{sha}:{gpu}:{seed}:{mc_seed}"
+
+
+def scored(hub, cfg, sha, branch, gpu, task, seed, mc_seed, fresh=False):
+    """Cached result of (sha, gpu, seeds), running it if needed."""
+    key = score_key(task, sha, gpu, seed, mc_seed)
+    cached = load_scores().get(key)
+    if cached is not None and not fresh:
+        log(f"cached: {task} {sha[:7]} on {gpu} (seed {seed}, mc seed {mc_seed}): {cached.get('status')}")
+        return cached
+    summary = run_commit(hub, cfg, sha, branch, gpu, task, seed, mc_seed)
+    if summary.get("status") in CACHED_STATUSES:
+        save_score(key, summary)
+    return summary
+
+
+def aggregate(results):
+    """Mean and worst score over seeds; status is `ok` only if every seed is."""
+    bad = [r.get("status") for r in results if r.get("status") != "ok"]
+    scores = [float(r["score"]) for r in results if r.get("status") == "ok"]
+    errs = [float(r["max_rel_err"]) for r in results if r.get("status") == "ok" and "max_rel_err" in r]
+    out = {"status": bad[0] if bad else "ok", "seeds_ok": f"{len(scores)}/{len(results)}"}
+    if scores:
+        out["score"] = f"{sum(scores) / len(scores):.6f}"
+        out["worst_score"] = f"{max(scores):.6f}"
+        out["best_score"] = f"{min(scores):.6f}"
+    if errs:
+        out["max_rel_err"] = f"{max(errs):.6f}"
+    return out
+
+
+def seed_pairs(seeds, vary):
+    """(init seed, MC seed) per run. `both` mirrors harness.seeds() defaults."""
+    if vary == "init":
+        return [(s, 10_000) for s in seeds]
+    if vary == "mc":
+        return [(0, 10_000 + s) for s in seeds]
+    return [(s, 10_000 + s) for s in seeds]
 
 
 # ---------------------------------------------------------------------------
@@ -371,42 +444,54 @@ def cmd_run(hub, cfg, args):
     sha = git("rev-parse", "HEAD")
     parent = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "HEAD~1"],
                             cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    pairs = seed_pairs(args.seeds, args.vary)
     for attempt in (1, 2):
         try:
             gpu = ensure_gpu_server(hub, cfg)
             baseline = None
             if parent and not args.no_baseline:
-                key = f"{parent}:{gpu}"
-                if key not in load_scores():
-                    log(f"no score for parent {parent[:7]} on {gpu}; running it first")
-                    save_score(key, run_commit(hub, cfg, parent, branch, gpu))
-                baseline = load_scores()[key]
-            summary = run_commit(hub, cfg, sha, branch, gpu)
+                baseline = [scored(hub, cfg, parent, branch, gpu, args.task, s, m) for s, m in pairs]
+            results = [scored(hub, cfg, sha, branch, gpu, args.task, s, m, fresh=args.fresh)
+                       for s, m in pairs]
             break
         except (Fail, websocket.WebSocketException, OSError) as e:
             if attempt == 2:
                 raise
             log(f"lost the server ({e}); retrying once")
-    save_score(f"{sha}:{gpu}", summary)
     print("---")
+    print(f"task: {args.task}")
     print(f"commit: {sha[:7]}")
     print(f"gpu: {gpu}")
-    for k in SUMMARY_KEYS:
-        if k in summary:
-            print(f"{k}: {summary[k]}")
+    if len(results) == 1:
+        for k in SUMMARY_KEYS:
+            if k in results[0]:
+                print(f"{k}: {results[0][k]}")
+    else:
+        print(f"seeds: {','.join(f'{s}/{m}' for s, m in pairs)}")
+        for k, v in aggregate(results).items():
+            print(f"{k}: {v}")
+        print("seed_scores: " + " ".join(
+            f"{s}/{m}={r.get('score', r.get('status'))}" for (s, m), r in zip(pairs, results)))
     if baseline is not None:
+        agg = aggregate(baseline)
         print(f"baseline_commit: {parent[:7]}")
-        print(f"baseline_status: {baseline.get('status')}")
-        print(f"baseline_score: {baseline.get('score', 'none')}")
-    print(f"log: {summary['log']}")
+        print(f"baseline_status: {agg['status']}")
+        # A baseline that is not ok on every seed has no score to compare against.
+        print(f"baseline_score: {agg['score'] if agg['status'] == 'ok' else 'none'}")
+        if len(baseline) > 1 and agg["status"] == "ok":
+            print(f"baseline_worst_score: {agg['worst_score']}")
+    print("log: " + " ".join(r["log"] for r in results if "log" in r))
 
 
 def cmd_setup(hub, cfg, args):
     branch = push_head()
     sha = git("rev-parse", "HEAD")
     gpu = ensure_gpu_server(hub, cfg)
-    script = checkout(sha, branch) + '"$UV" sync --frozen --extra cuda\n"$UV" run --frozen --extra cuda prepare.py\n'
-    rundir = launch(hub, cfg, script, f"setup-{gpu}-{time.strftime('%Y%m%d-%H%M%S')}")
+    script = checkout(sha, branch) + (
+        '"$UV" sync --frozen --extra cuda\n'
+        f'"$UV" run --frozen --extra cuda prepare.py --task {args.task}\n'
+    )
+    rundir = launch(hub, cfg, script, f"setup-{args.task}-{gpu}-{time.strftime('%Y%m%d-%H%M%S')}")
     log("installing environment and computing reference energies")
     code, text = wait_job(hub, cfg, rundir)
     print("\n".join(text.splitlines()[-40:]))
@@ -431,7 +516,13 @@ def cmd_stop(hub, cfg, args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("command", choices=["setup", "run", "status", "stop"])
+    p.add_argument("--task", default=DEFAULT_TASK, help="task directory under tasks/")
+    p.add_argument("--seeds", default=[0], type=lambda v: [int(x) for x in v.split(",")],
+                   help="comma-separated seeds, run one after another (default 0)")
+    p.add_argument("--vary", choices=["both", "init", "mc"], default="both",
+                   help="which seed --seeds varies: network init, Monte Carlo, or both")
     p.add_argument("--no-baseline", action="store_true", help="do not (re)score HEAD~1 first")
+    p.add_argument("--fresh", action="store_true", help="re-run HEAD even if its result is cached")
     p.add_argument("--server", help="override the server name from icrn.toml")
     args = p.parse_args()
     cfg = tomllib.loads((ROOT / "icrn.toml").read_text())
@@ -440,7 +531,7 @@ def main():
     hub = Hub(cfg)
     try:
         {"setup": cmd_setup, "run": cmd_run, "status": cmd_status, "stop": cmd_stop}[args.command](hub, cfg, args)
-    except Fail as e:
+    except (Fail, websocket.WebSocketException, OSError) as e:
         print(f"---\nstatus: remote_error\nreason: {e}")
         sys.exit(1)
 
