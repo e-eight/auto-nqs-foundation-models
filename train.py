@@ -129,6 +129,8 @@ class TwoSignViT(nn.Module):
     def __call__(self, x):
         spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
         h = spins.reshape(*spins.shape[:-1], -1, PATCH)
+        # J2 rescaled from [J2_MIN, J2_MAX] to [-1, 1], the same scale as the spins.
+        coups = (2 * coups - (prepare.J2_MIN + prepare.J2_MAX)) / (prepare.J2_MAX - prepare.J2_MIN)
         h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
         h = dense(D_MODEL)(h.astype(DTYPE))
         for _ in range(NUM_LAYERS):
