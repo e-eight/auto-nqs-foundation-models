@@ -13,14 +13,17 @@ import time
 t_start = time.time()
 
 import flax.linen as nn
+import jax
 import jax.numpy as jnp
 import netket as nk
 import numpy as np
 import netket_foundation as nkf
 import optax
-from netket_foundation._src.model.vit import Encoder, OutputHead, extract_patches1d
 
 import prepare
+
+# Full float32 matmuls (no TF32): amplitude ratios in the local energy need them.
+jax.config.update("jax_default_matmul_precision", "highest")
 
 # ---------------------------------------------------------------------------
 # Hyperparameters
@@ -40,6 +43,7 @@ WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-4
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
+DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
 # ---------------------------------------------------------------------------
@@ -78,9 +82,39 @@ SUBLATTICE_A = np.array(
 )
 
 
+def dense(features):
+    return nn.Dense(
+        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=jnp.float64
+    )
+
+
+def layer_norm():
+    return nn.LayerNorm(dtype=DTYPE, param_dtype=jnp.float64)
+
+
+def log_cosh(x):
+    x = x * jnp.where(x.real < 0, -1, 1)
+    return x + jnp.log1p(jnp.exp(-2 * x)) - jnp.log(2.0)
+
+
+class FactoredAttention(nn.Module):
+    """Attention with input-independent, translation-invariant weights J[h, j - i]
+    across row tokens (the ViT of Viteritti, Rende, Becca, PRL 2023)."""
+
+    @nn.compact
+    def __call__(self, x):
+        n_tok = x.shape[-2]
+        J = self.param("J", nn.initializers.xavier_uniform(), (HEADS, n_tok), jnp.float64)
+        shift = (jnp.arange(n_tok)[None, :] - jnp.arange(n_tok)[:, None]) % n_tok
+        J = J[:, shift].astype(DTYPE)  # (heads, i, j)
+        v = dense(D_MODEL)(x).reshape(*x.shape[:-1], HEADS, D_MODEL // HEADS)
+        x = jnp.einsum("hij,...jhd->...ihd", J, v).reshape(*x.shape[:-1], D_MODEL)
+        return dense(D_MODEL)(x)
+
+
 class TwoSignViT(nn.Module):
-    """Foundation ViT (couplings concatenated to each row patch) whose shared
-    encoder feeds two complex output heads, combined as
+    """Foundation ViT (couplings concatenated to each row patch, pre-norm encoder
+    blocks) whose shared encoder feeds two complex output heads, combined as
 
         psi = exp(f1) * Marshall(s) + exp(f2),
 
@@ -90,12 +124,17 @@ class TwoSignViT(nn.Module):
     @nn.compact
     def __call__(self, x):
         spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
-        h = extract_patches1d(spins, PATCH)
+        h = spins.reshape(*spins.shape[:-1], -1, PATCH)
         h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
-        h = nn.Dense(D_MODEL, kernel_init=nn.initializers.xavier_uniform(), param_dtype=jnp.float64)(h)
-        h = Encoder(NUM_LAYERS, D_MODEL, HEADS, prepare.N_SITES // PATCH, transl_invariant=True)(h)
-        f1 = OutputHead(D_MODEL, complex=True)(h)
-        f2 = OutputHead(D_MODEL, complex=True)(h)
+        h = dense(D_MODEL)(h.astype(DTYPE))
+        for _ in range(NUM_LAYERS):
+            h = h + FactoredAttention()(layer_norm()(h))
+            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
+        z = layer_norm()(h.sum(axis=-2))
+        f1, f2 = (
+            jnp.sum(log_cosh(dense(D_MODEL)(z) + 1j * dense(D_MODEL)(z)), axis=-1).astype(jnp.complex128)
+            for _ in range(2)
+        )
         marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
         m = jnp.maximum(f1.real, f2.real)
         return m + jnp.log(jnp.exp(f1 - m) * marshall + jnp.exp(f2 - m))
