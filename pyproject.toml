@@ -1,0 +1,26 @@
+[project]
+name = "auto-nqs-foundation-models"
+version = "0.1.0"
+description = "Autonomous research on foundation neural quantum states (autoresearch for netket_foundation)"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "netket",
+    "netket-foundation",
+    "jax",
+    "optax",
+    "numpy>=2.0",
+    "scipy",
+]
+
+[project.optional-dependencies]
+# Installed on ICRN (`uv sync --extra cuda`); local runs use CPU jax.
+cuda = ["jax[cuda12]"]
+
+[tool.uv]
+package = false
+
+# netket_foundation needs an unreleased NetKet feature (netket/netket#2273), so
+# both are pinned to exact commits. Bump deliberately, never during a run.
+[tool.uv.sources]
+netket = { git = "https://github.com/netket/netket", rev = "7e861379633646e52b218bf902b752f2922af62c" }
+netket-foundation = { git = "https://github.com/netket/netket_foundation", rev = "5ef13d5860b297137252efd38447063085ebb461" }
