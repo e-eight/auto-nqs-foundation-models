@@ -12,6 +12,7 @@ import time
 
 t_start = time.time()
 
+import flax.linen as nn
 import jax.numpy as jnp
 import netket as nk
 import netket_foundation as nkf
@@ -48,7 +49,21 @@ hi = prepare.hilbert()
 ps = prepare.parameter_space()
 ham = prepare.hamiltonian(hi, ps)
 
-model = ViTFNQS(
+class SpinFlipSymmetric(nn.Module):
+    """psi(s) + psi(-s): the singlet ground state on an even number of sites is
+    even under a global spin flip."""
+
+    net: nn.Module
+
+    def __call__(self, x):
+        spins, coups = x[..., : prepare.N_SITES], x[..., prepare.N_SITES :]
+        a = self.net(x)
+        b = self.net(jnp.concatenate([-spins, coups], axis=-1))
+        m = jnp.maximum(a.real, b.real)
+        return m + jnp.log(jnp.exp(a - m) + jnp.exp(b - m))
+
+
+vit = ViTFNQS(
     num_layers=NUM_LAYERS,
     d_model=D_MODEL,
     heads=HEADS,
@@ -60,6 +75,7 @@ model = ViTFNQS(
     transl_invariant=True,  # translation along rows-of-the-lattice (PBC in y)
     two_dimensional=False,
 )
+model = SpinFlipSymmetric(vit)
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=prepare.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
