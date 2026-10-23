@@ -12,14 +12,16 @@
       "Bash(git rev-parse:*)",
       "Bash(grep:*)",
       "Bash(tail:*)",
-      "Edit(/train.py)",
+      "Edit(/tasks/*/train.py)",
       "Edit(/results.tsv)",
       "WebSearch",
       "WebFetch"
     ],
     "deny": [
+      "Edit(/harness.py)",
       "Edit(/prepare.py)",
       "Edit(/remote.py)",
+      "Edit(/tasks/*/problem.py)",
       "Edit(/icrn.toml)",
       "Edit(/pyproject.toml)",
       "Edit(/uv.lock)",
