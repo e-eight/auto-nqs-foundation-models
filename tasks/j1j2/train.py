@@ -117,7 +117,8 @@ class FactoredAttention(nn.Module):
 
 
 class TwoSignViT(nn.Module):
-    """Foundation ViT (couplings concatenated to each row patch, pre-norm encoder
+    """Foundation ViT (row-patch embedding plus an MLP embedding of the couplings
+    added to every token, pre-norm encoder
     blocks) whose shared encoder feeds two complex output heads, combined as
 
         psi = exp(f1) * Marshall(s) + exp(f2),
@@ -133,9 +134,8 @@ class TwoSignViT(nn.Module):
     @nn.compact
     def __call__(self, x):
         spins, coups = x[..., : problem.N_SITES], x[..., problem.N_SITES :]
-        h = spins.reshape(*spins.shape[:-1], -1, PATCH)
-        h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
-        h = dense(D_MODEL)(h.astype(DTYPE))
+        h = dense(D_MODEL)(spins.reshape(*spins.shape[:-1], -1, PATCH).astype(DTYPE))
+        h = h + dense(D_MODEL)(nn.gelu(dense(D_MODEL)(coups.astype(DTYPE))))[..., None, :]
         for _ in range(NUM_LAYERS):
             h = h + FactoredAttention()(layer_norm()(h))
             h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
