@@ -156,7 +156,7 @@ class TwoSignViT(nn.Module):
 model = Symmetrized(TwoSignViT())
 
 sampler = nk.sampler.MetropolisExchange(
-    hi, graph=problem.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
+    hi, graph=problem.graph(), d_max=2, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
 )
 vstate = nkf.FoundationalQuantumState(
     sampler,
