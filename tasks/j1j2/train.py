@@ -43,6 +43,8 @@ LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
 DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
 DIAG_SHIFT = 1e-4
+DIAG_SHIFT_INIT = 1e-2  # large shift early, decaying exponentially to DIAG_SHIFT
+DIAG_SHIFT_STEPS = 60
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
@@ -179,7 +181,9 @@ driver = nkf.VMC_SR(
         )
     ),
     variational_state=vstate,
-    diag_shift=DIAG_SHIFT,
+    diag_shift=optax.exponential_decay(
+        DIAG_SHIFT_INIT, DIAG_SHIFT_STEPS, DIAG_SHIFT / DIAG_SHIFT_INIT, end_value=DIAG_SHIFT
+    ),
     use_ntk=True,
     chunk_size_bwd=CHUNK_SIZE_BWD,
     on_the_fly=False,  # explicit Jacobian: ~8x faster than the on-the-fly NTK here
