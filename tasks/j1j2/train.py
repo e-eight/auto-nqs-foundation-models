@@ -46,7 +46,8 @@ DIAG_SHIFT = 1e-4
 DIAG_SHIFT_INIT = 1e-2  # large shift early, decaying exponentially to DIAG_SHIFT
 DIAG_SHIFT_STEPS = 60
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
-DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
+DTYPE = jnp.float32  # network compute dtype
+PARAM_DTYPE = jnp.float32  # parameters (and so the SR Jacobian)
 AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
@@ -89,12 +90,12 @@ SUBLATTICE_A = np.array(
 
 def dense(features):
     return nn.Dense(
-        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=jnp.float64
+        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=PARAM_DTYPE
     )
 
 
 def layer_norm():
-    return nn.LayerNorm(dtype=DTYPE, param_dtype=jnp.float64)
+    return nn.LayerNorm(dtype=DTYPE, param_dtype=PARAM_DTYPE)
 
 
 def log_cosh(x):
@@ -109,7 +110,7 @@ class FactoredAttention(nn.Module):
     @nn.compact
     def __call__(self, x):
         n_tok = x.shape[-2]
-        J = self.param("J", nn.initializers.xavier_uniform(), (HEADS, n_tok), jnp.float64)
+        J = self.param("J", nn.initializers.xavier_uniform(), (HEADS, n_tok), PARAM_DTYPE)
         J = jnp.stack([jnp.roll(J, i, axis=-1) for i in range(n_tok)], axis=1).astype(DTYPE)  # (h, i, j)
         v = dense(D_MODEL)(x).reshape(*x.shape[:-1], HEADS, D_MODEL // HEADS)
         x = jnp.einsum("hij,...jhd->...ihd", J, v).reshape(*x.shape[:-1], D_MODEL)
@@ -144,8 +145,8 @@ class TwoSignViT(nn.Module):
         # Learnable J2-dependent tilt between the two branches, initialised so the
         # Marshall branch dominates at small J2 and the learned phase at large J2;
         # without it the stripe side sometimes stays stuck in the Marshall branch.
-        center = self.param("tilt_center", nn.initializers.constant(0.55), (), jnp.float64)
-        slope = self.param("tilt_slope", nn.initializers.constant(10.0), (), jnp.float64)
+        center = self.param("tilt_center", nn.initializers.constant(0.55), (), PARAM_DTYPE)
+        slope = self.param("tilt_slope", nn.initializers.constant(10.0), (), PARAM_DTYPE)
         tilt = slope * (center - coups[..., 0])
         f1, f2 = f1 + tilt, f2 - tilt
         marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
