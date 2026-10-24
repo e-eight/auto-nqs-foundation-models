@@ -32,7 +32,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 
 SEED, MC_SEED = harness.seeds()  # network init, Monte Carlo sampler
 NUM_LAYERS = 2
-D_MODEL = 32
+D_MODEL = 48
 HEADS = 8
 PATCH = problem.LX  # one token per lattice row
 N_REPLICAS = 28  # couplings trained simultaneously
