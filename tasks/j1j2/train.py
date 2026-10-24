@@ -45,6 +45,8 @@ DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H2
 DIAG_SHIFT = 1e-4
 DIAG_SHIFT_INIT = 1e-2  # large shift early, decaying exponentially to DIAG_SHIFT
 DIAG_SHIFT_STEPS = 60
+ENTROPY_T_INIT = 0.1  # free-energy temperature, annealed linearly to zero
+ENTROPY_STEPS = 60
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
@@ -173,7 +175,36 @@ vstate = nkf.FoundationalQuantumState(
 J2_STEP = (problem.J2_MAX - problem.J2_MIN) / N_REPLICAS
 vstate.parameter_array = (problem.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
 
-driver = nkf.VMC_SR(
+
+class AnnealedVMC_SR(nkf.VMC_SR):
+    """VMC_SR on the free energy F = E - T S, with S the entropy of |psi|^2 and T
+    annealed to zero (Roth, Szabo, MacDonald, arXiv:2211.07749): the entropy
+    term keeps the amplitude spread out early, against collapse into the wrong
+    sign branch. Its gradient is that of a local energy shifted by T log|psi|^2."""
+
+    temperature = staticmethod(optax.linear_schedule(ENTROPY_T_INIT, 0.0, ENTROPY_STEPS))
+
+    def compute_loss_and_update(self):
+        T = float(self.temperature(self.step_count))
+        if T == 0:
+            return super().compute_loss_and_update()
+        state = self.state
+        local_estimators = state.local_estimators
+
+        def annealed(op, **kwargs):
+            e = local_estimators(op, **kwargs)
+            σ = state.samples
+            lp = state.log_value(σ.reshape(-1, σ.shape[-1])).reshape(σ.shape[:-1])
+            return type(e)(e.data + 2 * T * lp.real)
+
+        state.local_estimators = annealed
+        try:
+            return super().compute_loss_and_update()
+        finally:
+            del state.local_estimators
+
+
+driver = AnnealedVMC_SR(
     ham,
     optax.sgd(
         optax.warmup_cosine_decay_schedule(
