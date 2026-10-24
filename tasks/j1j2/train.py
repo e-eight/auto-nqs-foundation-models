@@ -49,6 +49,7 @@ CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
 AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
+MIRROR_FRACTION = 0.5  # train without the x-mirror (8 images) for this first fraction of the budget
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -62,7 +63,9 @@ ham = problem.hamiltonian(hi, ps)
 # mirror x -> -x (the row-token attention is already invariant under
 # translations along y), and the global spin flip, under which the singlet
 # ground state on an even number of sites is even. The amplitude is averaged
-# over the group.
+# over the group. Training first runs without the mirror (half the images, so
+# more steps) and adds it later, as in the staged symmetry restoration of
+# Rende et al., Commun. Phys. 2024.
 X_SHIFTS = np.array(
     [[y * problem.LX + (sx * x + dx) % problem.LX for y in range(problem.LY) for x in range(problem.LX)]
      for sx in (1, -1) for dx in range(problem.LX)]
@@ -71,10 +74,12 @@ X_SHIFTS = np.array(
 
 class Symmetrized(nn.Module):
     net: nn.Module
+    mirror: bool = True
 
     def __call__(self, x):
         spins, coups = x[..., : problem.N_SITES], x[..., problem.N_SITES :]
-        images = jnp.concatenate([spins[..., X_SHIFTS], -spins[..., X_SHIFTS]], axis=-2)
+        perms = X_SHIFTS if self.mirror else X_SHIFTS[: problem.LX]
+        images = jnp.concatenate([spins[..., perms], -spins[..., perms]], axis=-2)
         coups = jnp.broadcast_to(coups[..., None, :], (*images.shape[:-1], coups.shape[-1]))
         lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
         lp = lp.reshape(images.shape[:-1])
@@ -153,7 +158,7 @@ class TwoSignViT(nn.Module):
         return m + jnp.log(jnp.exp(f1 - m) * marshall + jnp.exp(f2 - m))
 
 
-model = Symmetrized(TwoSignViT())
+model = Symmetrized(TwoSignViT(), mirror=False)
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=problem.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
@@ -218,7 +223,17 @@ class WeightAverage:
 
 average = WeightAverage()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
+driver.run(
+    10**9, out=log, show_progress=False, timeit=True,
+    callback=[average, budget, lambda *_: budget.elapsed < MIRROR_FRACTION * budget.seconds],
+)
+if budget.elapsed < budget.seconds and budget.diverged_at is None:
+    # Same parameters, full 16-image group; the driver keeps its step count and
+    # optimizer state, so the schedules carry on.
+    full = vstate._replace_model(Symmetrized(TwoSignViT()), variables=vstate.variables)
+    full.parameter_array = vstate.parameter_array
+    vstate = driver._variational_state = full
+    driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
 print(f"averaged weights over the last {average.count} steps")
 if average.count:
     vstate.parameters = average.mean
