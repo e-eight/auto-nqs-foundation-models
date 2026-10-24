@@ -44,16 +44,25 @@ Everything:
 
 ## Starting point
 
-`train.py` starts from the best model of the pilot (`autoresearch/oct23`, commit
-`0f70b75`, score −3.39 on an H200 with one seed). Its sampler seed is now set
-explicitly, so its seed-0 score will differ a little from the pilot's. The model:
+`train.py` starts from the best model of run tag `j1j2-oct23` (commit `988e940`):
+mean −3.306, worst seed −3.222 over seeds 0–4 on an H200, at the old 600 s
+budget. It is the pilot's best model (`autoresearch/oct23`, `0f70b75`) plus a
+diag_shift schedule. The model:
 
 - an own float32 ViT (float64 parameters), 2 layers, d=32, 8 heads, row tokens, factored attention;
 - two complex heads, ψ = exp(f1)·Marshall + exp(f2), with a learnable J2 "tilt" between them;
 - symmetrized over 4 x-translations × x-mirror × spin flip (16 images);
 - 28 replicas on a 0.025 grid offset from the test couplings, 180 samples each;
-- NTK-SR with diag_shift 1e-4, warmup + cosine learning rate peaking at 6e-2;
+- NTK-SR with diag_shift 1e-2 decaying exponentially to 1e-4 over 60 steps, warmup + cosine learning rate peaking at 6e-2;
 - Polyak weight averaging over the last 25 % of the budget.
+
+Its step-based schedules (`WARMUP_STEPS`, `DECAY_STEPS = 750`,
+`DIAG_SHIFT_STEPS`) were tuned when a run got about 180 steps. At 1800 s it
+gets about 540, so the learning rate now decays much further before the end.
+
+Both earlier runs are recorded on `autoresearch/oct23-records` and
+`autoresearch/j1j2-oct23-records` (results, full logs), with every experiment's
+code tagged `oct23/expNN` and `j1j2-oct23/expNN`.
 
 ## What the pilot learned (single seed, 600 s budget, so treat with care)
 
@@ -68,18 +77,43 @@ to [−1, 1]; FiLM in every LayerNorm; 3 or 4 layers (too few steps in 600 s); 5
 replicas; adding the y-mirror (32 images, too slow); fewer or more samples per
 replica than 180.
 
-**The known failure mode.** Three times, the stripe side (J2 ≳ 0.6) collapsed to
-errors around 4e-2 while the rest stayed near 1e-3: after switching to float32,
-after rewriting the ViT, and after going to 8 heads. The learnable tilt,
-initialised at J2 = 0.55, prevented it for seed 0. Whether it prevents it for
-other seeds is an open question, and the first thing the noise-floor run will
-show.
+## What `j1j2-oct23` learned (5 seeds, 600 s budget)
+
+**The failure mode.** The stripe side (J2 ≳ 0.6) can collapse to errors around
+4e-2 while the rest stays near 1e-3. The learnable tilt does **not** prevent it
+for every seed: on the pilot's best model, seed 3 collapsed (5.3e-2 at
+J2 = 0.625) while seeds 0, 1, 2, 4 scored −3.31 to −3.33. A large diag_shift
+early (1e-2 decaying to 1e-4 over 60 steps) removed the collapse on all five
+seeds. Decaying over 120 steps was worse; over 30 steps the gain did not hold.
+How J2 enters the network also matters: adding a J2 embedding to every token
+(instead of concatenating it to each patch) brought the collapse back.
+
+**Seeds.** Varying only the init seed reproduces most of the spread, so the init
+seed matters more than the Monte Carlo seed. Single-seed screen differences
+under about 0.05 mean little: a change that should be neutral moved seed 0 by
+0.05, and two screen gains of that size vanished on five seeds.
+
+Didn't work on five seeds: peak learning rate 8e-2 (bimodal: two seeds near
+−3.45, three near −3.2); tilt slope init 30; tilt center init 0.6; zero-init
+residual-branch outputs (too few steps to grow them); a 10× smaller output-head
+init (all seeds collapse); free-energy annealing (halves the seed spread but
+worsens the mean).
+
+Didn't work on seed 0: cosine decay over 180 steps (ending at a high learning
+rate with Polyak averaging was better); 8 images early and 16 late (step time is
+not dominated by the images); Polyak averaging over 40 %; denser training
+couplings in 0.45–0.6; D_MODEL 48 (94 steps, unconverged); MLP ratio 2 (more
+steps but worse); sampler exchanges up to distance 2; float32 parameters (SR
+3× slower, then diverged).
+
+Several of these lost on step count at 600 s and are worth retrying at 1800 s:
+D_MODEL 48, 3–4 layers, the y-mirror, zero-init residual branches.
 
 ## Research directions for this task
 
 **Robustness (goal 2).** These usually need the confirm stage directly:
-- the collapse rate over seeds (how often any coupling ends 10× above the median error), and whether the tilt really fixes it;
-- `--vary init` against `--vary mc`: which seed matters;
+- the collapse rate over seeds (how often any coupling ends 10× above the median error), and whether the diag_shift schedule still prevents it at 1800 s;
+- `--vary mc` against the known init-seed spread;
 - initialization schemes: smaller output-head init, zero-init residual branches, the tilt's initial center and slope, a learned versus fixed sign mixture;
 - optimizer stability: diag_shift schedules (large early, small late), warmup length, gradient or update clipping;
 - curricula in J2: start in the easy Néel region and widen, or start everywhere.
