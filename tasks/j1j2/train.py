@@ -47,7 +47,7 @@ DIAG_SHIFT_INIT = 1e-2  # large shift early, decaying exponentially to DIAG_SHIF
 DIAG_SHIFT_STEPS = 60
 CHUNK_SIZE = 4096  # forward-pass chunk (local energies)
 DTYPE = jnp.float32  # network compute dtype (parameters stay float64)
-AVERAGE_FRACTION = 0.25  # average the weights over this final fraction of the budget
+AVERAGE_FRACTION = 0.4  # average the weights over this final fraction of the budget
 CHUNK_SIZE_BWD = None  # no backward-pass chunking (SR Jacobian)
 
 # ---------------------------------------------------------------------------
