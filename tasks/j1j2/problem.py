@@ -48,7 +48,7 @@ TEST_J2 = tuple(round(0.325 + 0.05 * k, 4) for k in range(10))  # 0.325 ... 0.77
 MIN_TEST_DISTANCE = 0.01  # final training couplings must stay this far from TEST_J2
 N_PROBES = 3  # fresh random couplings per evaluation, to catch overfitting to TEST_J2
 PROBE_FACTOR = 10.0  # a probe may be at most this much worse than its neighbouring test points
-TIME_BUDGET = 600  # seconds of training, counted from the end of the first step
+TIME_BUDGET = 1800  # seconds of training, counted from the end of the first step
 EVAL_CHUNK = 2**14  # configurations per forward pass during evaluation
 CACHE_DIR = Path(os.environ.get("AUTO_NQS_CACHE", "~/.cache/auto-nqs")).expanduser()
 

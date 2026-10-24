@@ -22,7 +22,7 @@ energy error), so −3.0 means a typical relative error of 1e-3. It is on a log
 scale, so improving the worst coupling (`worst_j2`, `max_rel_err`) matters as
 much as polishing the easy ones.
 
-**Budget.** 600 s of training per run.
+**Budget.** 1800 s of training per run (600 s until 2026-10-24; at 600 s the model got only ~180 SR steps, so the search favoured fast convergence over accuracy).
 
 ## Task rules
 
@@ -55,7 +55,7 @@ explicitly, so its seed-0 score will differ a little from the pilot's. The model
 - NTK-SR with diag_shift 1e-4, warmup + cosine learning rate peaking at 6e-2;
 - Polyak weight averaging over the last 25 % of the budget.
 
-## What the pilot learned (single seed, so treat with care)
+## What the pilot learned (single seed, 600 s budget, so treat with care)
 
 Worked, roughly in order of size: x-translation and spin-flip symmetrization; the
 Marshall-sign head as a superposition (not a fixed sign); 28 replicas instead of

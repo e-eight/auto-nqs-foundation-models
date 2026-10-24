@@ -56,7 +56,7 @@ Work with the user to:
 
 ## Running an experiment
 
-Each experiment trains for a fixed wall-clock budget (the task sets it; 600 s for
+Each experiment trains for a fixed wall-clock budget (the task sets it; 1800 s for
 `j1j2`) on one GPU slice. The clock starts after the first optimization step, so
 the first JIT compile is not counted. Launch with:
 
@@ -66,7 +66,7 @@ uv run remote.py run --task <task> > run.log 2>&1
 
 This pushes your commit to GitHub, makes sure the ICRN server is up (H200 slice,
 or A100 slice if no H200 is free), runs `tasks/<task>/train.py` there and prints
-a summary. One single-seed experiment takes about 12–15 minutes, longer if no GPU
+a summary. One single-seed experiment takes about 35–40 minutes, longer if no GPU
 is free. Run the command in the background if your shell tool has a shorter
 timeout, and wait for it to exit. Do not poll in a tight loop.
 
@@ -114,9 +114,9 @@ mean_rel_err: 0.000512
 max_rel_err: 0.001232
 worst_j2: 0.775
 probe_ratio: 1.12
-training_seconds: 600.4
-total_seconds: 742.9
-num_steps: 175
+training_seconds: 1800.4
+total_seconds: 1942.9
+num_steps: 525
 num_params: 41234
 peak_vram_gb: 4.0
 baseline_commit: 9f8e7d6

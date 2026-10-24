@@ -29,5 +29,5 @@ user_options = { profile = "environments", image = "python", resource = "2_a100"
 spawn_wait = 300        # seconds to wait for one resource before trying the next
 retry_wait = 300        # seconds to sleep when no GPU resource could be started
 max_queue_wait = 7200   # give up after this long without a GPU server
-run_timeout = 1500      # kill a run (sync + train + eval) after this many seconds
+run_timeout = 2700      # kill a run (sync + train + eval) after this many seconds
 poll_every = 30
