@@ -34,6 +34,7 @@ SEED, MC_SEED = harness.seeds()  # network init, Monte Carlo sampler
 NUM_LAYERS = 2
 D_MODEL = 32
 HEADS = 8
+HEAD_INIT_SCALE = 0.1  # output-head kernels start 10x smaller than Xavier: near-uniform psi
 PATCH = problem.LX  # one token per lattice row
 N_REPLICAS = 28  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 18
@@ -87,9 +88,12 @@ SUBLATTICE_A = np.array(
 )
 
 
-def dense(features):
+def dense(features, scale=1.0):
     return nn.Dense(
-        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=jnp.float64
+        features,
+        kernel_init=nn.initializers.variance_scaling(scale**2, "fan_avg", "uniform"),
+        dtype=DTYPE,
+        param_dtype=jnp.float64,
     )
 
 
@@ -128,7 +132,7 @@ class TwoSignViT(nn.Module):
     @staticmethod
     def head(h):
         z = layer_norm()(h)
-        return jnp.sum(log_cosh(dense(D_MODEL)(z) + 1j * dense(D_MODEL)(z)), axis=-1).astype(jnp.complex128)
+        return jnp.sum(log_cosh(dense(D_MODEL, HEAD_INIT_SCALE)(z) + 1j * dense(D_MODEL, HEAD_INIT_SCALE)(z)), axis=-1).astype(jnp.complex128)
 
     @nn.compact
     def __call__(self, x):
