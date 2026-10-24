@@ -1,0 +1,44 @@
+online_statistics: chain_length=10, exponential moving average window: 50, decay=0.800
+num_params: 25826
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Stopping early because of :  Legacy callback <harness.TrainingBudget object at 0x77bf98470560> requested to stop the run.
+╭───────────────────────────── Timing Information ─────────────────────────────╮
+│ Total: 655.427                                                               │
+│ └── (99.7%) | VMC_SR.compute_loss_and_update : 653.436 s                     │
+│     ├── (60.5%) | FoundationalQuantumState.local_estimators : 395.506 s      │
+│     │   └── (28.2%) | FoundationalQuantumState.sample : 111.662 s            │
+│     │       └── (33.7%) | sampling n_discarded samples : 37.588 s            │
+│     └── (35.4%) | _sr_srt_common : 231.637 s                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+averaged weights over the last 44 steps
+final mean energy/N (sampled): -0.564749
+  J2=0.3250  E/N=-0.56572131  E0/N=-0.56581982  rel_err=1.741e-04
+  J2=0.3750  E/N=-0.55032400  E0/N=-0.55046832  rel_err=2.622e-04
+  J2=0.4250  E/N=-0.53686194  E0/N=-0.53708379  rel_err=4.131e-04
+  J2=0.4750  E/N=-0.52609898  E0/N=-0.52644509  rel_err=6.574e-04
+  J2=0.5250  E/N=-0.51932451  E0/N=-0.51982914  rel_err=9.708e-04
+  J2=0.5750  E/N=-0.51878456  E0/N=-0.51931133  rel_err=1.014e-03
+  J2=0.6250  E/N=-0.52671916  E0/N=-0.52705066  rel_err=6.290e-04
+  J2=0.6750  E/N=-0.54319582  E0/N=-0.54335981  rel_err=3.018e-04
+  J2=0.7250  E/N=-0.56617536  E0/N=-0.56630967  rel_err=2.372e-04
+  J2=0.7750  E/N=-0.59317381  E0/N=-0.59339194  rel_err=3.676e-04
+  probe J2=0.6300  rel_err=5.867e-04  (0.93x neighbouring test points)
+  probe J2=0.3293  rel_err=1.797e-04  (0.69x neighbouring test points)
+  probe J2=0.6553  rel_err=3.991e-04  (0.63x neighbouring test points)
+---
+status: ok
+score: -3.369465
+mean_rel_err: 0.000503
+max_rel_err: 0.001014
+worst_j2: 0.575000
+probe_ratio: 0.932827
+training_seconds: 600.867132
+eval_seconds: 186.690466
+total_seconds: 853.667457
+num_steps: 178
+num_params: 25826
+peak_vram_gb: 3.971375
+seed: 1
+mc_seed: 10001
+device: NVIDIA H200 NVL MIG 1g.18gb

@@ -1,0 +1,27 @@
+commit	gpu	seeds	score	worst_score	max_rel_err	vram_gb	status	description
+1422ee5	h200	0,1,2,3,4	-3.130898	-2.372494	0.052521	4.0	keep	noise floor on starting commit (no baseline). seed 3 collapsed on stripe side (5.3e-2 at J2=0.625); other 4 seeds within 0.017. stdev all 5 = 0.424; stdev excl seed 3 = 0.009. MARGIN = 0.01 (user decision: collapse is a robustness issue tracked via worst_score)
+eba6f95	h200	0	-3.254329	-3.254329	0.001402	4.0	discard	cosine decay over 180 steps instead of 750 (LR reaches 3e-3 at end): worse at every J2; ending at high LR + Polyak averaging is better
+988e940	h200	3	-3.264569	-3.264569	0.001266	4.0	screened	diag_shift 1e-2 -> 1e-4 exp decay over 60 steps (robustness; Rende 2024 NTK-SR): seed 3 no longer collapses (-2.372 -> -3.265)
+988e940	h200	0,1,2,3,4	-3.306048	-3.222171	0.001692	4.0	keep	diag_shift 1e-2 -> 1e-4 exp decay over 60 steps (robustness): no collapse on 5/5 seeds; worst -2.372 -> -3.222; mean -3.131 -> -3.306; seed 2 dropped -3.329 -> -3.222
+3ff5e54	h200	0	-3.437270	-3.437270	0.000687	4.0	screened	peak LR 6e-2 -> 8e-2 on top of the diag_shift schedule: seed 0 -3.369 -> -3.437
+3ff5e54	h200	0,1,2,3,4	-3.309952	-3.178913	0.002251	4.0	discard	peak LR 8e-2: mean -3.306 -> -3.310 (< MARGIN) and worst seed -3.222 -> -3.179; seeds 0,4 ~-3.45 but 1,2,3 ~-3.2
+988e940	h200	0-3 (init only; mc 10000)	-3.264322	-3.078132	0.006628	4.0	diagnostic	DIAGNOSTIC (no code change) --vary init: scores -3.369 -3.286 -3.078 -3.325 (init 4 killed by local low memory). Init seed drives the spread; init 2 partial stripe collapse (6.6e-3 at J2=0.675)
+ba4e55d	h200	0,1,2,3,4	-3.290867	-3.233743	0.002164	4.0	discard	tilt slope init 10 -> 30 (robustness): worst -3.222 -> -3.234 (+0.012) but mean -3.306 -> -3.291 (worse by > MARGIN); sharper tilt hurts J2 0.525-0.575
+6c848d5	h200	0	-3.286118	-3.286118	0.001382	4.0	discard	staged symmetrization (Rende 2024): 8 images without x-mirror for first half then 16: only 217 vs 179 steps (sampling/SR cost does not scale with images); seed 0 -3.369 -> -3.286
+8c66e1d	h200	0,1,2,3,4	-3.188946	-3.067581	0.002987	4.0	discard	zero-init residual-branch output projections (Roth Szabo MacDonald PRB 2023 trivial-layer init): worse on all seeds (mean -3.189 worst -3.068); too few steps in 600 s to grow branches from zero
+8b7b04e	h200	0	-3.339803	-3.339803	0.001168	4.0	discard	Polyak averaging over last 40% of budget (was 25%): seed 0 -3.369 -> -3.340
+2cc10c6	h200	0	-2.462148	-2.462148	0.037181	4.0	discard	J2 via 2-layer MLP embedding added to every token (was concat to each patch): seed 0 stripe side COLLAPSED (3.7e-2 at 0.675); how J2 enters controls the collapse
+89bd5fc	h200	0,1,2,3,4	-3.246939	-3.184878	0.001807	4.0	discard	diag_shift decay over 120 steps (was 60): no collapse but mean -3.306 -> -3.247 and worst -3.222 -> -3.185; errors up on the Neel side
+c87eea0	h200	0	-3.421662	-3.421662	0.001086	4.0	screened	diag_shift decay over 30 steps (was 60): seed 0 -3.369 -> -3.422
+c87eea0	h200	0,1,2,3,4	-3.308956	-3.114728	0.002228	4.0	discard	diag_shift decay over 30 steps: seed 0 gain did not hold (mean +0.003, seed 3 worst -3.115)
+6674ffd	h200	0	-3.359123	-3.359123	0.000847	4.0	discard	denser training couplings in 0.45-0.6 (drop 4 outermost): flatter errors but seed 0 -3.369 -> -3.359
+d9da9d2	h200	0,1,2,3,4	-3.279660	-3.243612	0.001840	4.0	discard	free-energy annealing T 0.1->0 over 60 steps (Roth 2211.07749): worst +0.021 but mean -0.026; seed spread halved
+f933d56	h200	0,1,2,3,4	-3.253902	-3.121885	0.003285	4.0	discard	free-energy annealing T 0.1->0 over 30 steps: worse mean and worst; annealing direction dropped
+972e46c	h200	0	-1.863589	-1.863589	0.053714	7.9	discard	D_MODEL 48: 57k params, only 94 steps, stripe side unconverged
+570d2c4	h200	0	-3.309258	-3.309258	0.001583	3.1	discard	encoder MLP ratio 2: 225 steps (vs 178) but worse mid-J2; capacity-limited
+b132848	h200	0,1,2,3,4	-2.207459	-1.906704	0.140596	4.0	discard	output-head init 10x smaller: all seeds collapse (near-uniform start is harmful)
+5ecbda9	h200	0	-3.317235	-3.317235	0.001305	4.0	discard	forward chunk 16384: no speedup (180 steps); score moved 0.05 from trajectory noise alone
+b5aff8d	h200	0	-3.334678	-3.334678	0.001193	4.0	discard	sampler d_max 2 (2-hop exchanges): seed 0 -3.335, no gain
+c010bf7	h200	0	-	-	-	-	crash	float32 params: SR 3x slower (mixed f32 params/c128 output) and diverged at step 71
+80d0468	h200	0	-3.384779	-3.384779	0.001181	4.0	screened	tilt center init 0.6: seed 0 -3.369 -> -3.385
+80d0468	h200	0,1,2,3,4	-3.294231	-3.113323	0.001774	4.0	discard	tilt center init 0.6: mean -3.294 (worse), seed 2 worst -3.113
