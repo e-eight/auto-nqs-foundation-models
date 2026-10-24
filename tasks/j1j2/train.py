@@ -87,10 +87,8 @@ SUBLATTICE_A = np.array(
 )
 
 
-def dense(features):
-    return nn.Dense(
-        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=jnp.float64
-    )
+def dense(features, kernel_init=nn.initializers.xavier_uniform()):
+    return nn.Dense(features, kernel_init=kernel_init, dtype=DTYPE, param_dtype=jnp.float64)
 
 
 def layer_norm():
@@ -113,7 +111,7 @@ class FactoredAttention(nn.Module):
         J = jnp.stack([jnp.roll(J, i, axis=-1) for i in range(n_tok)], axis=1).astype(DTYPE)  # (h, i, j)
         v = dense(D_MODEL)(x).reshape(*x.shape[:-1], HEADS, D_MODEL // HEADS)
         x = jnp.einsum("hij,...jhd->...ihd", J, v).reshape(*x.shape[:-1], D_MODEL)
-        return dense(D_MODEL)(x)
+        return dense(D_MODEL, nn.initializers.zeros)(x)  # zero-init residual branch
 
 
 class TwoSignViT(nn.Module):
@@ -138,7 +136,7 @@ class TwoSignViT(nn.Module):
         h = dense(D_MODEL)(h.astype(DTYPE))
         for _ in range(NUM_LAYERS):
             h = h + FactoredAttention()(layer_norm()(h))
-            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
+            h = h + dense(D_MODEL, nn.initializers.zeros)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
         h = h.sum(axis=-2)
         f1, f2 = (self.head(h) for _ in range(2))
         # Learnable J2-dependent tilt between the two branches, initialised so the
