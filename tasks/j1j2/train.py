@@ -168,10 +168,13 @@ vstate = nkf.FoundationalQuantumState(
     sampler_seed=MC_SEED,
     chunk_size=CHUNK_SIZE,
 )
-# Training couplings: a 0.025 grid offset by half a step (0.2125, 0.2375, ...,
-# 0.8875), which keeps every point 0.0125 away from the test couplings.
+# Training couplings: a 0.025 grid offset by half a step (0.2625, 0.2875, ...,
+# 0.8375), which keeps every point 0.0125 away from the test couplings, plus
+# extra points in the frustrated region, where the errors peak.
 J2_STEP = (problem.J2_MAX - problem.J2_MIN) / N_REPLICAS
-vstate.parameter_array = (problem.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
+J2_DENSE = [0.45, 0.5, 0.55, 0.6]
+J2_GRID = problem.J2_MIN + J2_STEP * (np.arange(2, N_REPLICAS - 2) + 0.5)
+vstate.parameter_array = jnp.array(np.sort(np.concatenate([J2_GRID, J2_DENSE]))).reshape(-1, 1)
 
 driver = nkf.VMC_SR(
     ham,
