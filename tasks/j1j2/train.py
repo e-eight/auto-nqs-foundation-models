@@ -34,6 +34,7 @@ SEED, MC_SEED = harness.seeds()  # network init, Monte Carlo sampler
 NUM_LAYERS = 2
 D_MODEL = 32
 HEADS = 8
+MLP_RATIO = 2  # encoder MLP hidden width / D_MODEL
 PATCH = problem.LX  # one token per lattice row
 N_REPLICAS = 28  # couplings trained simultaneously
 CHAINS_PER_REPLICA = 18
@@ -138,7 +139,7 @@ class TwoSignViT(nn.Module):
         h = dense(D_MODEL)(h.astype(DTYPE))
         for _ in range(NUM_LAYERS):
             h = h + FactoredAttention()(layer_norm()(h))
-            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
+            h = h + dense(D_MODEL)(nn.gelu(dense(MLP_RATIO * D_MODEL)(layer_norm()(h))))
         h = h.sum(axis=-2)
         f1, f2 = (self.head(h) for _ in range(2))
         # Learnable J2-dependent tilt between the two branches, initialised so the
