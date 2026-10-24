@@ -145,7 +145,7 @@ class TwoSignViT(nn.Module):
         # Marshall branch dominates at small J2 and the learned phase at large J2;
         # without it the stripe side sometimes stays stuck in the Marshall branch.
         center = self.param("tilt_center", nn.initializers.constant(0.55), (), jnp.float64)
-        slope = self.param("tilt_slope", nn.initializers.constant(10.0), (), jnp.float64)
+        slope = self.param("tilt_slope", nn.initializers.constant(30.0), (), jnp.float64)
         tilt = slope * (center - coups[..., 0])
         f1, f2 = f1 + tilt, f2 - tilt
         marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
