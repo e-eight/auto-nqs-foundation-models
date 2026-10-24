@@ -25,8 +25,8 @@ discarded ones; the tag message repeats the final `results.tsv` row for that
 commit. The best kept run is experiment 03, commit `988e940` (diag_shift
 schedule 1e-2 → 1e-4): mean −3.306, worst seed −3.222 over seeds 0–4.
 
-The branch `autoresearch/j1j2-oct23` was left at `80d0468` (experiment 21),
-which was discarded; `988e940` is its parent.
+`988e940` is the head of `autoresearch/j1j2-oct23`. The last experiment
+(21, `80d0468`) was discarded and survives only in its tag.
 
 After this run the training budget was raised to 1800 s, because many ideas
 were limited by step count. Scores here are not comparable with later runs.
