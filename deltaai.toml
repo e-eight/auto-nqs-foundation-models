@@ -35,8 +35,12 @@ time_limit = "01:00:00"
 # exactly this many, so --seeds must be a multiple of it. Packing changes the
 # steps a run gets in its time budget, so it is part of the GPU tag: results
 # with different packing are never compared.
-seeds_per_gpu = 1
-mps = false  # start an NVIDIA MPS daemon in the job so packed seeds share the GPU concurrently
+# Measured 2026-10-25 (job 3454508, f73c5c0): solo 0.666 s/step. Without MPS,
+# packing gives almost nothing (1.07x throughput at 2 seeds, 1.11x at 4). With MPS:
+# 1.45x at 2 seeds (0.92 s/step each), 1.52x at 4 (1.75 s/step), no more at 8,
+# and 3 of 8 packed processes did not finish.
+seeds_per_gpu = 2
+mps = true  # start an NVIDIA MPS daemon in the job so packed seeds share the GPU concurrently
 
 [timing]
 poll_every = 60      # seconds between queue checks
