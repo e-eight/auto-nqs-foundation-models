@@ -31,7 +31,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 # ---------------------------------------------------------------------------
 
 SEED, MC_SEED = harness.seeds()  # network init, Monte Carlo sampler
-NUM_LAYERS = 2
+NUM_LAYERS = 3
 D_MODEL = 32
 HEADS = 8
 PATCH = problem.LX  # one token per lattice row
@@ -173,13 +173,12 @@ vstate = nkf.FoundationalQuantumState(
 J2_STEP = (problem.J2_MAX - problem.J2_MIN) / N_REPLICAS
 vstate.parameter_array = (problem.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
 
+lr_schedule = optax.warmup_cosine_decay_schedule(
+    LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
+)
 driver = nkf.VMC_SR(
     ham,
-    optax.sgd(
-        optax.warmup_cosine_decay_schedule(
-            LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
-        )
-    ),
+    optax.sgd(lr_schedule),
     variational_state=vstate,
     diag_shift=optax.exponential_decay(
         DIAG_SHIFT_INIT, DIAG_SHIFT_STEPS, DIAG_SHIFT / DIAG_SHIFT_INIT, end_value=DIAG_SHIFT
@@ -216,9 +215,18 @@ class WeightAverage:
         return True
 
 
+def trace(step, log_data, driver):
+    """Print a coarse learning curve, to tune the step-based schedules."""
+    if step % 50 == 0:
+        e = log_data["Mean Energy"]
+        print(f"step {step:4d}  t={budget.elapsed:6.0f}s  E/N={float(e.mean.real) / hi.size:.6f}  "
+              f"var={float(e.variance):.4f}  lr={float(lr_schedule(step)):.4f}", flush=True)
+    return True
+
+
 average = WeightAverage()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
+driver.run(10**9, out=log, callback=[average, trace, budget], show_progress=False, timeit=True)
 print(f"averaged weights over the last {average.count} steps")
 if average.count:
     vstate.parameters = average.mean
