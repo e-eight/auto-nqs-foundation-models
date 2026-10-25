@@ -1,0 +1,38 @@
+W1025 10:26:49.832101   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.832667   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.833143   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.833639   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.834123   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.834595   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:49.835062   94896 bfc_allocator.cc:504] Allocator (GPU_0_bfc) ran out of memory trying to allocate 3.93GiB from the upper end with freed_by_count=0. The caller indicates that this is not a failure, but this may mean that there could be performance gains if more memory were available.
+W1025 10:26:51.745990   94541 hlo_rematerialization.cc:3402] Can't reduce memory use below 11.40GiB (12238402440 bytes) by rematerialization; only reduced to 12.59GiB (13524166669 bytes), down from 12.96GiB (13920283813 bytes) originally
+W1025 10:27:03.244742   94541 bfc_allocator.cc:743] Allocator (GPU_0_bfc) ran out of memory trying to allocate 14.30GiB (rounded to 15354844160) from the upper end requested by op 
+If this is caused by memory fragmentation, the environment variable 'TF_GPU_ALLOCATOR=cuda_malloc_async' may improve the situation.
+Current allocation summary follows.
+W1025 10:27:03.245368   94541 bfc_allocator.cc:754] ___________________________________________________________________________________________________*
+online_statistics: chain_length=20, exponential moving average window: 50, decay=0.600
+num_params: 25826
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+Traceback (most recent call last):
+  File "/home/soham/auto-nqs/default/tasks/j1j2/train.py", line 231, in <module>
+    driver.run(10**9, out=log, callback=[average, trace, budget], show_progress=False, timeit=True)
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 516, in run
+    raise error
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/_src/driver/abstract_variational_driver.py", line 468, in run
+    self._loss_stats, self._dp = self.compute_loss_and_update()
+                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 292, in timed_function
+    result = fun(*args, **kwargs)  # type: ignore[misc]
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket_foundation/_src/driver/ngd/driver_vmc_ngd.py", line 180, in compute_loss_and_update
+    self._dp, self._old_updates, self.info = self.update_fn(
+                                             ^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 294, in timed_function
+    return ts.block_until_ready(result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/netket/utils/timing.py", line 128, in block_until_ready
+    return jax.block_until_ready(args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/soham/auto-nqs/default/.venv/lib/python3.12/site-packages/jax/_src/api.py", line 2811, in block_until_ready
+    xc.batched_block_until_ready(arrays)
+jax.errors.JaxRuntimeError: RESOURCE_EXHAUSTED: Out of memory while trying to allocate 14.30GiB with allocator GPU_0_bfc on device 0. [executable_name='jit__sr_srt_common'] [tf-allocator-allocation-error='']

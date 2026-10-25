@@ -1,0 +1,52 @@
+W1025 07:27:00.313474   89480 cuda_timer.cc:88] Delay kernel timed out: measured time has sub-optimal accuracy. There may be a missing warmup execution, please investigate in Nsight Systems.
+online_statistics: chain_length=10, exponential moving average window: 50, decay=0.800
+num_params: 25826
+train_j2: [0.2125, 0.2375, 0.2625, 0.2875, 0.3125, 0.3375, 0.3625, 0.3875, 0.4125, 0.4375, 0.4625, 0.4875, 0.5125, 0.5375, 0.5625, 0.5875, 0.6125, 0.6375, 0.6625, 0.6875, 0.7125, 0.7375, 0.7625, 0.7875, 0.8125, 0.8375, 0.8625, 0.8875]
+step    0  t=     0s  E/N=-0.059116  var=57.9577  lr=0.0100
+step   50  t=   276s  E/N=-0.563141  var=0.1213  lr=0.0600
+step  100  t=   558s  E/N=-0.564369  var=0.0507  lr=0.0593
+step  150  t=   840s  E/N=-0.564644  var=0.0369  lr=0.0572
+step  200  t=  1123s  E/N=-0.564794  var=0.0264  lr=0.0538
+step  250  t=  1405s  E/N=-0.564872  var=0.0232  lr=0.0493
+step  300  t=  1687s  E/N=-0.564862  var=0.0274  lr=0.0439
+Stopping early because of :  Legacy callback <harness.TrainingBudget object at 0x7c1524476c60> requested to stop the run.
+╭───────────────────────────── Timing Information ─────────────────────────────╮
+│ Total: 1863.255                                                              │
+│ └── (99.8%) | VMC_SR.compute_loss_and_update : 1859.998 s                    │
+│     ├── (74.9%) | FoundationalQuantumState.local_estimators : 1393.867 s     │
+│     │   └── (28.1%) | FoundationalQuantumState.sample : 391.061 s            │
+│     │       └── (33.6%) | sampling n_discarded samples : 131.261 s           │
+│     └── (22.6%) | _sr_srt_common : 419.500 s                                 │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+averaged weights over the last 80 steps
+final mean energy/N (sampled): -0.564843
+  J2=0.3250  E/N=-0.56576463  E0/N=-0.56581982  rel_err=9.754e-05
+  J2=0.3750  E/N=-0.55038590  E0/N=-0.55046832  rel_err=1.497e-04
+  J2=0.4250  E/N=-0.53694966  E0/N=-0.53708379  rel_err=2.497e-04
+  J2=0.4750  E/N=-0.52620528  E0/N=-0.52644509  rel_err=4.555e-04
+  J2=0.5250  E/N=-0.51941793  E0/N=-0.51982914  rel_err=7.910e-04
+  J2=0.5750  E/N=-0.51884564  E0/N=-0.51931133  rel_err=8.967e-04
+  J2=0.6250  E/N=-0.52678462  E0/N=-0.52705066  rel_err=5.048e-04
+  J2=0.6750  E/N=-0.54324818  E0/N=-0.54335981  rel_err=2.055e-04
+  J2=0.7250  E/N=-0.56620226  E0/N=-0.56630967  rel_err=1.897e-04
+  J2=0.7750  E/N=-0.59320578  E0/N=-0.59339194  rel_err=3.137e-04
+  probe J2=0.4699  rel_err=4.273e-04  (0.94x neighbouring test points)
+  probe J2=0.7564  rel_err=2.437e-04  (0.78x neighbouring test points)
+  probe J2=0.4534  rel_err=3.489e-04  (0.77x neighbouring test points)
+---
+status: ok
+score: -3.513827
+mean_rel_err: 0.000385
+max_rel_err: 0.000897
+worst_j2: 0.575000
+probe_ratio: 0.938075
+training_seconds: 1805.197459
+eval_seconds: 333.300020
+total_seconds: 2207.779439
+num_steps: 320
+num_params: 25826
+peak_vram_gb: 5.961500
+seed: 1
+mc_seed: 10001
+device: NVIDIA H200 NVL MIG 1g.18gb
