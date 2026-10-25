@@ -31,7 +31,7 @@ jax.config.update("jax_default_matmul_precision", "highest")
 # ---------------------------------------------------------------------------
 
 SEED, MC_SEED = harness.seeds()  # network init, Monte Carlo sampler
-NUM_LAYERS = 2
+NUM_LAYERS = 3
 D_MODEL = 32
 HEADS = 8
 PATCH = problem.LX  # one token per lattice row
@@ -87,10 +87,9 @@ SUBLATTICE_A = np.array(
 )
 
 
-def dense(features):
-    return nn.Dense(
-        features, kernel_init=nn.initializers.xavier_uniform(), dtype=DTYPE, param_dtype=jnp.float64
-    )
+def dense(features, zero=False):
+    init = nn.initializers.zeros if zero else nn.initializers.xavier_uniform()
+    return nn.Dense(features, kernel_init=init, dtype=DTYPE, param_dtype=jnp.float64)
 
 
 def layer_norm():
@@ -113,7 +112,7 @@ class FactoredAttention(nn.Module):
         J = jnp.stack([jnp.roll(J, i, axis=-1) for i in range(n_tok)], axis=1).astype(DTYPE)  # (h, i, j)
         v = dense(D_MODEL)(x).reshape(*x.shape[:-1], HEADS, D_MODEL // HEADS)
         x = jnp.einsum("hij,...jhd->...ihd", J, v).reshape(*x.shape[:-1], D_MODEL)
-        return dense(D_MODEL)(x)
+        return dense(D_MODEL, zero=True)(x)
 
 
 class TwoSignViT(nn.Module):
@@ -136,9 +135,11 @@ class TwoSignViT(nn.Module):
         h = spins.reshape(*spins.shape[:-1], -1, PATCH)
         h = jnp.concatenate([h, jnp.broadcast_to(coups[..., None, :], (*h.shape[:-1], coups.shape[-1]))], -1)
         h = dense(D_MODEL)(h.astype(DTYPE))
+        # Residual branches start at zero (Roth, Szabo, MacDonald 2022), so every seed
+        # starts from the same shallow function and depth grows in during training.
         for _ in range(NUM_LAYERS):
             h = h + FactoredAttention()(layer_norm()(h))
-            h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
+            h = h + dense(D_MODEL, zero=True)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
         h = h.sum(axis=-2)
         f1, f2 = (self.head(h) for _ in range(2))
         # Learnable J2-dependent tilt between the two branches, initialised so the
@@ -173,13 +174,12 @@ vstate = nkf.FoundationalQuantumState(
 J2_STEP = (problem.J2_MAX - problem.J2_MIN) / N_REPLICAS
 vstate.parameter_array = (problem.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
 
+lr_schedule = optax.warmup_cosine_decay_schedule(
+    LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
+)
 driver = nkf.VMC_SR(
     ham,
-    optax.sgd(
-        optax.warmup_cosine_decay_schedule(
-            LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
-        )
-    ),
+    optax.sgd(lr_schedule),
     variational_state=vstate,
     diag_shift=optax.exponential_decay(
         DIAG_SHIFT_INIT, DIAG_SHIFT_STEPS, DIAG_SHIFT / DIAG_SHIFT_INIT, end_value=DIAG_SHIFT
@@ -216,9 +216,18 @@ class WeightAverage:
         return True
 
 
+def trace(step, log_data, driver):
+    """Print a coarse learning curve, to tune the step-based schedules."""
+    if step % 50 == 0:
+        e = log_data["Mean Energy"]
+        print(f"step {step:4d}  t={budget.elapsed:6.0f}s  E/N={float(e.mean.real) / hi.size:.6f}  "
+              f"var={float(e.variance):.4f}  lr={float(lr_schedule(step)):.4f}", flush=True)
+    return True
+
+
 average = WeightAverage()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
+driver.run(10**9, out=log, callback=[average, trace, budget], show_progress=False, timeit=True)
 print(f"averaged weights over the last {average.count} steps")
 if average.count:
     vstate.parameters = average.mean
