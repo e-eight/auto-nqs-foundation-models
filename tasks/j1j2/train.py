@@ -42,7 +42,7 @@ N_DISCARD = 0  # the chains carry over between steps, so they need no re-equilib
 LEARNING_RATE = 6e-2  # peak of a warmup + cosine decay schedule
 LR_INIT, LR_END = 1e-2, 3e-3
 WARMUP_STEPS = 50
-DECAY_STEPS = 750  # roughly the number of steps that fit in the budget on an H200 slice
+DECAY_STEPS = 2250  # several times the steps that fit in the budget: the run ends near the peak learning rate
 DIAG_SHIFT = 1e-4
 DIAG_SHIFT_INIT = 1e-2  # large shift early, decaying exponentially to DIAG_SHIFT
 DIAG_SHIFT_STEPS = 60
@@ -60,13 +60,14 @@ ps = problem.parameter_space()
 ham = problem.hamiltonian(hi, ps)
 
 # Symmetries the network does not have built in: translations along x and the
-# mirror x -> -x (the row-token attention is already invariant under
+# mirrors x -> -x and y -> -y (the row-token attention is already invariant under
 # translations along y), and the global spin flip, under which the singlet
 # ground state on an even number of sites is even. The amplitude is averaged
 # over the group.
-X_SHIFTS = np.array(
-    [[y * problem.LX + (sx * x + dx) % problem.LX for y in range(problem.LY) for x in range(problem.LX)]
-     for sx in (1, -1) for dx in range(problem.LX)]
+IMAGES = np.array(
+    [[(sy * y) % problem.LY * problem.LX + (sx * x + dx) % problem.LX
+      for y in range(problem.LY) for x in range(problem.LX)]
+     for sy in (1, -1) for sx in (1, -1) for dx in range(problem.LX)]
 )
 
 
@@ -75,7 +76,7 @@ class Symmetrized(nn.Module):
 
     def __call__(self, x):
         spins, coups = x[..., : problem.N_SITES], x[..., problem.N_SITES :]
-        images = jnp.concatenate([spins[..., X_SHIFTS], -spins[..., X_SHIFTS]], axis=-2)
+        images = jnp.concatenate([spins[..., IMAGES], -spins[..., IMAGES]], axis=-2)
         coups = jnp.broadcast_to(coups[..., None, :], (*images.shape[:-1], coups.shape[-1]))
         lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
         lp = lp.reshape(images.shape[:-1])
