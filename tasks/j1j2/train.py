@@ -82,8 +82,13 @@ class Symmetrized(nn.Module):
         return m[..., 0] + jnp.log(jnp.mean(jnp.exp(lp - m), axis=-1))
 
 
-SUBLATTICE_A = np.array(
-    [(x + y) % 2 == 0 for y in range(problem.LY) for x in range(problem.LX)], dtype=np.float64
+# Sign rules (-1)^(number of up spins on a sublattice): Marshall (Neel, checkerboard
+# sublattice) and the two stripe rules, (pi, 0) and (0, pi), which are the Marshall
+# signs of the two decoupled checkerboard lattices at J1 = 0.
+SIGN_SUBLATTICES = np.array(
+    [[cond(x, y) for y in range(problem.LY) for x in range(problem.LX)]
+     for cond in (lambda x, y: (x + y) % 2 == 0, lambda x, y: x % 2 == 0, lambda x, y: y % 2 == 0)],
+    dtype=np.float64,
 )
 
 
@@ -116,14 +121,15 @@ class FactoredAttention(nn.Module):
         return dense(D_MODEL)(x)
 
 
-class TwoSignViT(nn.Module):
+class SignViT(nn.Module):
     """Foundation ViT (couplings concatenated to each row patch, pre-norm encoder
-    blocks) whose shared encoder feeds two complex output heads, combined as
+    blocks) whose shared encoder feeds three complex output heads, combined as
 
-        psi = exp(f1) * Marshall(s) + exp(f2),
+        psi = exp(f1) * Marshall(s) + exp(f2) * StripeX(s) + exp(f3) * StripeY(s),
 
-    so the network can pick the Marshall sign (Neel side) or a learned phase
-    (stripe side) per coupling without fractional phases."""
+    so the network starts from the Neel sign on one side and either stripe sign on
+    the other, and picks one per coupling without fractional phases. Each head keeps
+    a learnable phase, so the signs are priors, not constraints."""
 
     @staticmethod
     def head(h):
@@ -140,20 +146,20 @@ class TwoSignViT(nn.Module):
             h = h + FactoredAttention()(layer_norm()(h))
             h = h + dense(D_MODEL)(nn.gelu(dense(4 * D_MODEL)(layer_norm()(h))))
         h = h.sum(axis=-2)
-        f1, f2 = (self.head(h) for _ in range(2))
-        # Learnable J2-dependent tilt between the two branches, initialised so the
-        # Marshall branch dominates at small J2 and the learned phase at large J2;
+        f = jnp.stack([self.head(h) for _ in range(3)], axis=-1)
+        # Learnable J2-dependent tilt between the Neel and stripe branches, initialised
+        # so the Marshall branch dominates at small J2 and the stripe ones at large J2;
         # without it the stripe side sometimes stays stuck in the Marshall branch.
         center = self.param("tilt_center", nn.initializers.constant(0.55), (), jnp.float64)
         slope = self.param("tilt_slope", nn.initializers.constant(10.0), (), jnp.float64)
         tilt = slope * (center - coups[..., 0])
-        f1, f2 = f1 + tilt, f2 - tilt
-        marshall = 1 - 2 * (jnp.sum((1 + spins) / 2 * SUBLATTICE_A, axis=-1) % 2)
-        m = jnp.maximum(f1.real, f2.real)
-        return m + jnp.log(jnp.exp(f1 - m) * marshall + jnp.exp(f2 - m))
+        f = f + tilt[..., None] * jnp.array([1.0, -1.0, -1.0])
+        signs = 1 - 2 * (((1 + spins) / 2) @ SIGN_SUBLATTICES.T % 2)
+        m = jnp.max(f.real, axis=-1, keepdims=True)
+        return m[..., 0] + jnp.log(jnp.sum(jnp.exp(f - m) * signs, axis=-1))
 
 
-model = Symmetrized(TwoSignViT())
+model = Symmetrized(SignViT())
 
 sampler = nk.sampler.MetropolisExchange(
     hi, graph=problem.graph(), d_max=1, n_chains=N_REPLICAS * CHAINS_PER_REPLICA
