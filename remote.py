@@ -3,19 +3,27 @@
 # dependencies = ["websocket-client>=1.7"]
 # ///
 """
-Run experiments on ICRN. DO NOT MODIFY (the agent only edits tasks/<task>/train.py).
+Run experiments on ICRN or DeltaAI. DO NOT MODIFY (the agent only edits tasks/<task>/train.py).
 
 Code moves through GitHub: the current commit is force-pushed to its branch and
-checked out on ICRN. Commands run in a Jupyter kernel on an ICRN server started
-through the JupyterHub API (H200 slice preferred, A100 slice as fallback).
+checked out remotely. Two backends:
+
+- icrn (default): commands run in a Jupyter kernel on an ICRN server started
+  through the JupyterHub API (H200 slice preferred, A100 slice as fallback).
+  Seeds run one after another. Settings in icrn.toml.
+- deltaai: Slurm jobs on NCSA DeltaAI, submitted over an open SSH master
+  connection. Each job is one GH200 running `seeds_per_gpu` seeds of one commit
+  side by side; all jobs of a command (baseline included) are queued at once.
+  Settings in deltaai.toml. Pick it with --backend deltaai or NQS_BACKEND=deltaai.
 
     uv run remote.py setup [--task j1j2]   # once per task: clone, install, compute references
     uv run remote.py run                   # run HEAD, seed 0 (and HEAD~1 if it has no score)
-    uv run remote.py run --seeds 0,1,2     # several seeds, one after another, plus their mean
+    uv run remote.py run --seeds 0,1,2     # several seeds plus their mean
     uv run remote.py run --seeds 0,1,2 --vary init   # vary only the init seed (MC seed fixed)
     uv run remote.py run --no-baseline
     uv run remote.py status
     uv run remote.py stop
+    uv run remote.py check --backend deltaai   # test the connection and job settings; runs nothing
 
 Results are cached per (task, commit, GPU type, init seed, MC seed), so a
 confirmation with --seeds 0,1,2 reuses the seed-0 screening run.
@@ -23,6 +31,7 @@ confirmation with --seeds 0,1,2 reuses the seed-0 screening run.
 
 import argparse
 import fcntl
+import glob
 import json
 import math
 import os
@@ -442,6 +451,313 @@ def seed_pairs(seeds, vary):
 
 
 # ---------------------------------------------------------------------------
+# Slurm backend (DeltaAI): jobs over SSH, several seeds of one commit per GPU
+# ---------------------------------------------------------------------------
+
+
+class Slurm:
+    """A Slurm cluster reached through an already open SSH master connection.
+
+    Remote layout under `remote.root`: `repo/` (clone), `wt/<sha>/` (one worktree
+    per commit, so a running job keeps its own train.py while other commits are
+    checked out), `venv/` (one environment shared by all worktrees) and
+    `runs/<job name>/` (job script, one log and exit file per seed).
+    """
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.r = cfg["remote"]
+        self.pack = int(cfg["packing"]["seeds_per_gpu"])
+        self.mps = bool(cfg["packing"]["mps"]) and self.pack > 1
+        self._socket = None
+
+    @property
+    def gpu(self):
+        """GPU tag of every result. Packed seeds share the GPU and get fewer steps
+        in the same time budget, so the packing is part of the tag."""
+        tag = self.cfg["gpu"]
+        if self.pack > 1:
+            tag += f"x{self.pack}" + ("mps" if self.mps else "")
+        return tag
+
+    # -- shell on the login node --------------------------------------------
+
+    def _control_socket(self):
+        if self._socket:
+            return self._socket
+        host = self.cfg["ssh"]["host"]
+        for pattern in self.cfg["ssh"]["control_path"]:
+            for path in sorted(glob.glob(os.path.expanduser(pattern))):
+                r = subprocess.run(["ssh", "-o", f"ControlPath={path}", "-O", "check", host],
+                                   capture_output=True, text=True)
+                if r.returncode == 0:
+                    self._socket = path
+                    return path
+        raise Fail(f"no open SSH master connection to {host}; open one with\n"
+                   f"  ssh -fN -o ControlMaster=yes -o ControlPersist=yes "
+                   f"-o ControlPath=~/.ssh/cm-deltaai {self.cfg['ssh']['user']}@{host}")
+
+    def sh(self, script, timeout=300):
+        """Run a bash script on the login node; raise on non-zero exit."""
+        cmd = ["ssh", "-o", "BatchMode=yes", "-o", f"ControlPath={self._control_socket()}",
+               "-l", self.cfg["ssh"]["user"], self.cfg["ssh"]["host"], "bash", "-l", "-s"]
+        try:
+            r = subprocess.run(cmd, input=script, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            raise Fail("ssh command timed out") from None
+        if r.returncode != 0:
+            self._socket = None  # the master may have gone away; look again next time
+            raise Fail(f"remote command failed (exit {r.returncode}):\n{(r.stdout + r.stderr)[-3000:]}")
+        return r.stdout.strip()
+
+    def _env(self):
+        r = self.r
+        return f"""
+set -euo pipefail
+export UV_CACHE_DIR={r['uv_cache']} UV_PYTHON_INSTALL_DIR={r['uv_python']}
+export UV_PROJECT_ENVIRONMENT={r['root']}/venv UV_LINK_MODE=copy
+UV={r['uv']}
+GH={r['gh']}
+ROOT={r['root']}
+# HTTPS with gh as credential helper: does not depend on SSH keys for GitHub.
+git_auth() {{ git -c credential.helper= -c "credential.helper=!$GH auth git-credential" "$@"; }}
+"""
+
+    def worktree(self, sha, branch):
+        """Check out `sha` in its own worktree and sync the shared venv; return its path."""
+        self.sh(self._env() + f"""
+REPO=$ROOT/repo
+if [ ! -d $REPO/.git ]; then
+  rm -rf $REPO; mkdir -p $ROOT
+  git_auth clone --quiet https://github.com/{self.cfg['repo']}.git $REPO
+fi
+cd $REPO
+git_auth fetch --quiet origin +refs/heads/{branch}:refs/remotes/origin/{branch} || true
+git cat-file -e {sha}^{{commit}} 2>/dev/null || git_auth fetch --quiet origin {sha}
+WT=$ROOT/wt/{sha}
+[ -d $WT ] || git worktree add --quiet --detach $WT {sha}
+cd $WT && "$UV" sync --frozen --extra cuda --quiet
+""", timeout=1800)
+        return f"{self.r['root']}/wt/{sha}"
+
+    # -- jobs ------------------------------------------------------------------
+
+    def job_script(self, name, wt, rundir, commands):
+        """One GPU; `commands` is a list of (output name, shell command) run side by side."""
+        s, r = self.cfg["slurm"], self.r
+        lines = [
+            "#!/bin/bash",
+            f"#SBATCH --job-name={name}",
+            f"#SBATCH --account={s['account']}",
+            f"#SBATCH --partition={s['partition']}",
+            "#SBATCH --nodes=1",
+            "#SBATCH --ntasks=1",
+            "#SBATCH --gpus-per-node=1",
+            f"#SBATCH --cpus-per-task={s['cpus_per_gpu']}",
+            f"#SBATCH --mem={s['mem']}",
+            f"#SBATCH --time={s['time_limit']}",
+            f"#SBATCH --output={rundir}/slurm.out",
+            "set -u",
+            f"cd {wt}",
+            # Packed processes must not each grab 75% of the GPU memory at startup.
+            f"export PYTHONPATH={wt} AUTO_NQS_CACHE={r['cache']} XLA_PYTHON_CLIENT_PREALLOCATE=false",
+            "hostname; nvidia-smi -L",
+        ]
+        if self.mps:
+            lines += [
+                "export CUDA_MPS_PIPE_DIRECTORY=$TMPDIR/mps-pipe CUDA_MPS_LOG_DIRECTORY=$TMPDIR/mps-log",
+                "mkdir -p $CUDA_MPS_PIPE_DIRECTORY $CUDA_MPS_LOG_DIRECTORY",
+                "nvidia-cuda-mps-control -d || { echo 'could not start MPS'; exit 1; }",
+            ]
+        for out, command in commands:
+            lines.append(f"({command} > {rundir}/{out}.log 2>&1; echo $? > {rundir}/{out}.exit) &")
+        lines.append("wait")
+        if self.mps:
+            lines.append("echo quit | nvidia-cuda-mps-control")
+        lines.append(f"touch {rundir}/done")
+        return "\n".join(lines) + "\n"
+
+    def submit(self, name, wt, commands, fresh=False):
+        """Submit the job, or re-attach to a queued or finished one of the same name
+        (e.g. after remote.py was interrupted). Return {id, name, rundir, outs}."""
+        rundir = f"{self.r['root']}/runs/{name}"
+        script = self.job_script(name, wt, rundir, commands)
+        out = self.sh(f"""
+set -euo pipefail
+JOB=$(squeue -h -u $USER -n {name} -o %i | head -1)
+if [ -n "$JOB" ]; then echo "queued $JOB"; exit 0; fi
+if [ {0 if fresh else 1} = 1 ] && [ -f {rundir}/done ]; then echo "finished"; exit 0; fi
+rm -rf {rundir} && mkdir -p {rundir} && cd {rundir}
+cat > job.sh <<'__JOB__'
+{script}__JOB__
+echo "submitted $(sbatch --parsable job.sh)"
+""").splitlines()[-1]
+        kind, _, job_id = out.partition(" ")
+        log(f"{kind} {name}" + (f" (job {job_id})" if job_id else ""))
+        return {"id": job_id or None, "name": name, "rundir": rundir, "outs": [o for o, _ in commands]}
+
+    def wait(self, jobs):
+        """Poll until every job has left the queue. Jobs still pending after
+        `max_wait` are cancelled and come back without results."""
+        t = self.cfg["timing"]
+        start, failures, seen = time.time(), 0, {}
+        active = {j["id"] for j in jobs if j["id"]}
+        while active:
+            try:
+                out = self.sh(f"squeue -h -j {','.join(sorted(active))} -o '%i %T %N' 2>/dev/null || true")
+                failures = 0
+            except Fail as e:
+                failures += 1
+                if failures >= 10:
+                    raise Fail(f"lost the login node ({e}); the jobs keep running, re-run the "
+                               "same command to re-attach to them") from None
+                log(f"queue check failed ({failures}/10); retrying")
+                time.sleep(t["poll_every"])
+                continue
+            live = {}
+            for line in out.splitlines():
+                job_id, state, *node = line.split()
+                live[job_id] = state
+                if seen.get(job_id) != state:
+                    log(f"job {job_id}: {state.lower()}" + (f" on {node[0]}" if node and node[0] else ""))
+                    seen[job_id] = state
+            active &= set(live)
+            pending = [j for j, s in live.items() if s == "PENDING"]
+            if pending and time.time() - start > t["max_wait"]:
+                self.sh(f"scancel {' '.join(pending)}")
+                log(f"cancelled jobs still pending after {t['max_wait']}s: {' '.join(pending)}")
+                active -= set(pending)
+            if active:
+                time.sleep(t["poll_every"])
+
+    def collect(self, job):
+        """Return ({out: (exit code or None, log text)}, final job state, GPU-hours billed)."""
+        results = {}
+        for out in job["outs"]:
+            text = self.sh(f"cd {job['rundir']}; echo \"$(cat {out}.exit 2>/dev/null || echo none)\"; "
+                           f"tail -c 200000 {out}.log 2>/dev/null || true")
+            code, _, body = text.partition("\n")
+            results[out] = (int(code) if code.strip().lstrip("-").isdigit() else None, body)
+        state, hours = "UNKNOWN", 0.0
+        if job["id"]:
+            acct = self.sh(f"sacct -j {job['id']} -X -n -P --format=State,ElapsedRaw,AllocTRES || true")
+            if acct:
+                state, elapsed, tres = acct.splitlines()[0].split("|")
+                billing = dict(kv.split("=", 1) for kv in tres.split(",") if "=" in kv).get("billing", "0")
+                hours = int(elapsed or 0) * int(billing) / 1000 / 3600
+        return results, state.split()[0], hours
+
+
+def slurm_result(code, text, state):
+    """Status of one seed of a finished job; like classify(), plus Slurm's view."""
+    if code is not None:
+        return classify(code, parse_summary(text))
+    if state == "TIMEOUT":
+        return {"status": "timeout"}
+    if state == "OUT_OF_MEMORY":
+        return {"status": "crash", "reason": "job ran out of host memory"}
+    return {"status": "remote_error", "reason": f"job ended {state} without an exit code"}
+
+
+def slurm_run(sl, args):
+    branch = push_head()
+    sha = git("rev-parse", "HEAD")
+    parent = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "HEAD~1"],
+                            cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    pairs = seed_pairs(args.seeds, args.vary)
+    if len(pairs) % sl.pack:
+        raise Fail(f"--seeds must be a multiple of seeds_per_gpu = {sl.pack}: every job runs exactly "
+                   f"that many seeds on one GPU, so that all results share the same packing")
+    gpu = sl.gpu
+    with_baseline = bool(parent) and not args.no_baseline
+    commits = ([(parent, False)] if with_baseline else []) + [(sha, args.fresh)]
+    results, jobs, worktrees = {}, [], {}
+    for c, fresh in commits:
+        for i in range(0, len(pairs), sl.pack):
+            group = pairs[i:i + sl.pack]
+            cached = [load_scores().get(score_key(args.task, c, gpu, s, m)) for s, m in group]
+            if not fresh and all(r is not None for r in cached):
+                for (s, m), r in zip(group, cached):
+                    log(f"cached: {args.task} {c[:7]} on {gpu} (seed {s}, mc seed {m}): {r.get('status')}")
+                    results[(c, s, m)] = r
+                continue
+            # A partly cached group runs again in full: its seeds must share the GPU as packed.
+            if c not in worktrees:
+                worktrees[c] = sl.worktree(c, branch)
+            wt = worktrees[c]
+            name = f"nqs-{args.task}-{c[:7]}-{gpu}-" + "-".join(f"s{s}m{m}" for s, m in group)
+            commands = [(f"s{s}m{m}", f"NQS_SEED={s} NQS_MC_SEED={m} {sl.r['root']}/venv/bin/python "
+                         f"tasks/{args.task}/train.py") for s, m in group]
+            jobs.append((c, group, sl.submit(name, wt, commands, fresh=fresh)))
+    sl.wait([j for _, _, j in jobs])
+    hours = 0.0
+    for c, group, job in jobs:
+        outs, state, h = sl.collect(job)
+        hours += h
+        for s, m in group:
+            code, text = outs[f"s{s}m{m}"]
+            tag = f"{args.task}-{c[:7]}-{gpu}-s{s}m{m}-{time.strftime('%Y%m%d-%H%M%S')}"
+            (STATE_DIR / "logs").mkdir(parents=True, exist_ok=True)
+            (STATE_DIR / "logs" / f"{tag}.log").write_text(text)
+            summary = slurm_result(code, text, state)
+            summary["log"] = str((STATE_DIR / "logs" / f"{tag}.log").relative_to(ROOT))
+            if summary.get("status") in CACHED_STATUSES:
+                save_score(score_key(args.task, c, gpu, s, m), summary)
+            elif summary.get("status") != "ok":
+                print(f"--- remote log tail ({c[:7]} seed {s}/{m}, job {state}) ---")
+                print("\n".join(text.splitlines()[-60:]))
+            results[(c, s, m)] = summary
+    baseline = [results[(parent, s, m)] for s, m in pairs] if with_baseline else None
+    print_summary(args.task, sha, gpu, pairs, [results[(sha, s, m)] for s, m in pairs], parent, baseline)
+    print(f"gpu_hours: {hours:.2f}")
+
+
+def slurm_setup(sl, args):
+    branch = push_head()
+    sha = git("rev-parse", "HEAD")
+    wt = sl.worktree(sha, branch)
+    job = sl.submit(f"nqs-setup-{args.task}-{sha[:7]}", wt,
+                    [("prepare", f"{sl.r['root']}/venv/bin/python prepare.py --task {args.task}")], fresh=True)
+    log("computing reference energies")
+    sl.wait([job])
+    outs, state, _ = sl.collect(job)
+    code, text = outs["prepare"]
+    print("\n".join(text.splitlines()[-40:]))
+    print("---")
+    print(f"setup: {'ok' if code == 0 else 'failed'} (job {state})")
+    if code != 0:
+        sys.exit(1)
+
+
+def slurm_status(sl, args):
+    print(sl.sh("squeue -u $USER -o '%.10i %.9T %.10M %.12R %j' | awk 'NR == 1 || $5 ~ /^nqs-/'"))
+    print(sl.sh(f"accounts 2>/dev/null | grep -E '^(Account|{sl.cfg['slurm']['account']})' || true"))
+
+
+def slurm_stop(sl, args):
+    ids = sl.sh("squeue -h -u $USER -o '%i %j' | awk '$2 ~ /^nqs-/ {print $1}'").split()
+    if ids:
+        sl.sh(f"scancel {' '.join(ids)}")
+    print(f"cancelled {len(ids)} job(s): {' '.join(ids)}")
+
+
+def slurm_check(sl, args):
+    """Check the SSH connection, allocation and job settings without running anything."""
+    log(f"ssh master: {sl._control_socket()}")
+    print(sl.sh("hostname; uname -m"))
+    slurm_status(sl, args)
+    rundir = f"{sl.r['root']}/runs/check"
+    script = sl.job_script("nqs-check", "/tmp", rundir, [("check", "true")])
+    print(sl.sh(f"""
+mkdir -p {rundir} && cd {rundir}
+cat > job.sh <<'__JOB__'
+{script}__JOB__
+sbatch --test-only job.sh 2>&1
+"""))
+    print(f"---\ngpu tag: {sl.gpu}  (seeds_per_gpu = {sl.pack}, mps = {sl.mps})")
+
+
+# ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
 
@@ -465,8 +781,12 @@ def cmd_run(hub, cfg, args):
             if attempt == 2:
                 raise
             log(f"lost the server ({e}); retrying once")
+    print_summary(args.task, sha, gpu, pairs, results, parent, baseline)
+
+
+def print_summary(task, sha, gpu, pairs, results, parent, baseline):
     print("---")
-    print(f"task: {args.task}")
+    print(f"task: {task}")
     print(f"commit: {sha[:7]}")
     print(f"gpu: {gpu}")
     if len(results) == 1:
@@ -522,7 +842,10 @@ def cmd_stop(hub, cfg, args):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["setup", "run", "status", "stop"])
+    p.add_argument("command", choices=["setup", "run", "status", "stop", "check"])
+    p.add_argument("--backend", choices=["icrn", "deltaai"], default=os.environ.get("NQS_BACKEND", "icrn"),
+                   help="where to run: ICRN (icrn.toml) or DeltaAI Slurm jobs (deltaai.toml); "
+                        "default $NQS_BACKEND, else icrn")
     p.add_argument("--task", default=DEFAULT_TASK, help="task directory under tasks/")
     p.add_argument("--seeds", default=[0], type=lambda v: [int(x) for x in v.split(",")],
                    help="comma-separated seeds, run one after another (default 0)")
@@ -532,6 +855,18 @@ def main():
     p.add_argument("--fresh", action="store_true", help="re-run HEAD even if its result is cached")
     p.add_argument("--server", help="override the server name from icrn.toml")
     args = p.parse_args()
+    if args.backend == "deltaai":
+        sl = Slurm(tomllib.loads((ROOT / "deltaai.toml").read_text()))
+        commands = {"setup": slurm_setup, "run": slurm_run, "status": slurm_status,
+                    "stop": slurm_stop, "check": slurm_check}
+        try:
+            commands[args.command](sl, args)
+        except Fail as e:
+            print(f"---\nstatus: remote_error\nreason: {e}")
+            sys.exit(1)
+        return
+    if args.command == "check":
+        p.error("check is only available with --backend deltaai")
     cfg = tomllib.loads((ROOT / "icrn.toml").read_text())
     if args.server is not None:
         cfg["server"] = args.server

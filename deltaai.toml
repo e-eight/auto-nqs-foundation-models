@@ -1,0 +1,43 @@
+# Slurm settings for `remote.py --backend deltaai` (NCSA DeltaAI). Not edited by the agent.
+
+repo = "e-eight/auto-nqs-foundation-models"
+gpu = "gh200"  # GPU tag in the score cache; packing adds a suffix (see [packing])
+
+[ssh]
+host = "dtai-login.delta.ncsa.illinois.edu"
+user = "soham"
+# DeltaAI asks for Duo on every new login, so remote.py never opens a connection
+# itself: it reuses the first live master socket matching one of these globs.
+# Open a long-lived one with
+#   ssh -fN -o ControlMaster=yes -o ControlPersist=yes -o ControlPath=~/.ssh/cm-deltaai soham@dtai-login.delta.ncsa.illinois.edu
+# (an Emacs TRAMP session also works, but closes with Emacs).
+control_path = ["~/.ssh/cm-deltaai", "~/.cache/emacs/tramp.*"]
+
+[remote]
+root = "/projects/bhhk/soham/auto-nqs-remote"  # repo/, wt/<sha>/, venv/, runs/<job name>/
+cache = "/projects/bhhk/soham/auto-nqs-cache"  # AUTO_NQS_CACHE: reference energies
+uv = "~/.local/bin/uv"
+gh = "~/.local/bin/gh"
+uv_cache = "/projects/bhhk/soham/.uv-cache"
+uv_python = "/projects/bhhk/soham/.uv-python"
+
+[slurm]
+account = "bhhk-dtai-gh"
+partition = "ghx4"
+# One GPU with up to 72 CPUs and ~111 GB is billed as one GPU-hour per hour
+# (MAX_TRES billing); asking for more memory raises the bill.
+cpus_per_gpu = 72
+mem = "110G"
+time_limit = "01:00:00"
+
+[packing]
+# Seeds of one commit that share one GPU as separate processes. Every job runs
+# exactly this many, so --seeds must be a multiple of it. Packing changes the
+# steps a run gets in its time budget, so it is part of the GPU tag: results
+# with different packing are never compared.
+seeds_per_gpu = 1
+mps = false  # start an NVIDIA MPS daemon in the job so packed seeds share the GPU concurrently
+
+[timing]
+poll_every = 60      # seconds between queue checks
+max_wait = 43200     # cancel jobs still pending after this many seconds

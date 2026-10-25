@@ -36,8 +36,9 @@ Monte Carlo estimate with error bars, and it can go below the reference.
 | `tasks/<task>/train.py` | Model, sampler, training couplings, optimizer, loop | the agent |
 | `harness.py` | Seeds, NaN-aware training budget, rule checks, summary block | nobody |
 | `prepare.py` | `uv run prepare.py --task <task>`: compute and cache references | nobody |
-| `remote.py` | Pushes the commit to GitHub and runs it on ICRN through the JupyterHub API | nobody |
+| `remote.py` | Pushes the commit to GitHub and runs it on ICRN (JupyterHub API) or DeltaAI (Slurm over SSH) | nobody |
 | `icrn.toml` | Hub URL, user, server name, GPU resource options, timeouts | you |
+| `deltaai.toml` | SSH master socket, remote paths, Slurm account and resources, seeds per GPU | you |
 
 ## Metric (task `j1j2`)
 
@@ -103,6 +104,21 @@ Each checkout then has its own `.autoresearch/` score cache, `run.log` and
 `results.tsv`. Two agents in one directory would reset and switch each other's
 branches. Run `remote.py setup` for a task once, before starting the agents:
 the reference-energy cache on ICRN is shared.
+
+**DeltaAI.** `--backend deltaai` (or `NQS_BACKEND=deltaai`) runs the same
+commands as Slurm jobs on NCSA DeltaAI, with the settings in `deltaai.toml`:
+1. Open an SSH master connection, since every new DeltaAI login asks for Duo:
+   `ssh -fN -o ControlMaster=yes -o ControlPersist=yes -o ControlPath=~/.ssh/cm-deltaai soham@dtai-login.delta.ncsa.illinois.edu`.
+2. `uv run remote.py check --backend deltaai` tests the connection, shows the
+   balance and validates the job settings with `sbatch --test-only`. It runs nothing.
+3. `uv run remote.py setup --backend deltaai --task j1j2`, then `run` as usual.
+
+Each job is one GH200 that runs `seeds_per_gpu` seeds of one commit side by side.
+All jobs of a `run`, baseline included, are queued at once, and the summary ends
+with the GPU-hours billed. Packing changes the steps a run gets, so it is part of
+the GPU tag (`gh200`, `gh200x4`, `gh200x4mps`), and `--seeds` must be a multiple
+of `seeds_per_gpu`. An interrupted `run` leaves its jobs running; the same
+command re-attaches to them.
 
 To run a task locally (CPU JAX), set `PYTHONPATH` so that `harness` and `tasks`
 import: `PYTHONPATH=. uv run tasks/j1j2/train.py`.
