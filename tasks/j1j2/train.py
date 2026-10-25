@@ -59,13 +59,14 @@ ps = problem.parameter_space()
 ham = problem.hamiltonian(hi, ps)
 
 # Symmetries the network does not have built in: translations along x and the
-# mirror x -> -x (the row-token attention is already invariant under
+# mirrors x -> -x and y -> -y (the row-token attention is already invariant under
 # translations along y), and the global spin flip, under which the singlet
 # ground state on an even number of sites is even. The amplitude is averaged
 # over the group.
-X_SHIFTS = np.array(
-    [[y * problem.LX + (sx * x + dx) % problem.LX for y in range(problem.LY) for x in range(problem.LX)]
-     for sx in (1, -1) for dx in range(problem.LX)]
+IMAGES = np.array(
+    [[(sy * y) % problem.LY * problem.LX + (sx * x + dx) % problem.LX
+      for y in range(problem.LY) for x in range(problem.LX)]
+     for sy in (1, -1) for sx in (1, -1) for dx in range(problem.LX)]
 )
 
 
@@ -74,7 +75,7 @@ class Symmetrized(nn.Module):
 
     def __call__(self, x):
         spins, coups = x[..., : problem.N_SITES], x[..., problem.N_SITES :]
-        images = jnp.concatenate([spins[..., X_SHIFTS], -spins[..., X_SHIFTS]], axis=-2)
+        images = jnp.concatenate([spins[..., IMAGES], -spins[..., IMAGES]], axis=-2)
         coups = jnp.broadcast_to(coups[..., None, :], (*images.shape[:-1], coups.shape[-1]))
         lp = self.net(jnp.concatenate([images, coups], axis=-1).reshape(-1, x.shape[-1]))
         lp = lp.reshape(images.shape[:-1])
@@ -173,13 +174,12 @@ vstate = nkf.FoundationalQuantumState(
 J2_STEP = (problem.J2_MAX - problem.J2_MIN) / N_REPLICAS
 vstate.parameter_array = (problem.J2_MIN + J2_STEP * (jnp.arange(N_REPLICAS) + 0.5)).reshape(-1, 1)
 
+lr_schedule = optax.warmup_cosine_decay_schedule(
+    LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
+)
 driver = nkf.VMC_SR(
     ham,
-    optax.sgd(
-        optax.warmup_cosine_decay_schedule(
-            LR_INIT, LEARNING_RATE, WARMUP_STEPS, DECAY_STEPS, end_value=LR_END
-        )
-    ),
+    optax.sgd(lr_schedule),
     variational_state=vstate,
     diag_shift=optax.exponential_decay(
         DIAG_SHIFT_INIT, DIAG_SHIFT_STEPS, DIAG_SHIFT / DIAG_SHIFT_INIT, end_value=DIAG_SHIFT
@@ -216,9 +216,18 @@ class WeightAverage:
         return True
 
 
+def trace(step, log_data, driver):
+    """Print a coarse learning curve, to tune the step-based schedules."""
+    if step % 50 == 0:
+        e = log_data["Mean Energy"]
+        print(f"step {step:4d}  t={budget.elapsed:6.0f}s  E/N={float(e.mean.real) / hi.size:.6f}  "
+              f"var={float(e.variance):.4f}  lr={float(lr_schedule(step)):.4f}", flush=True)
+    return True
+
+
 average = WeightAverage()
 log = nk.logging.RuntimeLog()
-driver.run(10**9, out=log, callback=[average, budget], show_progress=False, timeit=True)
+driver.run(10**9, out=log, callback=[average, trace, budget], show_progress=False, timeit=True)
 print(f"averaged weights over the last {average.count} steps")
 if average.count:
     vstate.parameters = average.mean
